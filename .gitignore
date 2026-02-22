@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Environment Variables
+.env
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Outputs
+outputs/
+data/
+faiss_indices/
+models/
+backupfiles/
+TestFAISS_SemanticSearch/
+TestKeywordSearch/
+
+# Logs
+*.log
+logs/
+
+# Markdown files (except README.md)
+*.md
+!README.md
+
+# Pytest / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Distribution / Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Temporary files
+*.tmp
+*.bak
+*.backup

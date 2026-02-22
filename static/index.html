@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TwistedCollab</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="/static/marked.min.js"></script>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/images/favicon-16x16.png">
+    <link rel="manifest" href="/static/images/site.webmanifest">
+</head>
+<body>
+    <div class="container">
+        <!-- Header with Branding and Controls -->
+        <header class="app-header">
+            <div class="header-left">
+                <h1 class="app-title">TwistedCollab</h1>
+            </div>
+
+            <div class="header-center">
+                <nav class="nav-tabs">
+                    <button class="nav-tab active" data-tab="search">Search</button>
+                    <button class="nav-tab" data-tab="notes">Notes</button>
+                    <button class="nav-tab" data-tab="sessions">Sessions</button>
+                    <button class="nav-tab" data-tab="collab">Collab</button>
+                </nav>
+            </div>
+
+            <div class="header-right">
+                <div class="status-indicators">
+                    <div class="status-indicator">
+                        <div class="status-dot offline" id="ollama-status"></div>
+                        <span>Ollama</span>
+                    </div>
+                    <div class="status-indicator">
+                        <div class="status-dot offline" id="twistedpair-status"></div>
+                        <span>TwistedPair</span>
+                    </div>
+                </div>
+                <button id="help-btn" class="header-btn" aria-label="Show help" title="Help">
+                    <span class="btn-icon">❓</span>
+                </button>
+                <button id="theme-toggle" class="header-btn" aria-label="Toggle theme" title="Toggle Dark/Light Mode">
+                    <span class="theme-icon">🌙</span>
+                </button>
+            </div>
+        </header>
+
+
+        <!-- ============================================================
+             SEARCH TAB
+             ============================================================ -->
+        <div class="tab-content active" id="search-tab">
+            <div class="layout">
+
+                <!-- Collapsible Sidebar -->
+                <aside class="sidebar" id="sidebar">
+                    <button class="collapse-btn" id="collapse-btn" title="Collapse sidebar">◀</button>
+
+                    <div class="sidebar-content">
+
+                        <!-- Data Source -->
+                        <div class="sidebar-section">
+                            <h3>Data Source</h3>
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" name="scope" value="live_web" id="scope-live-web"> Live Web</label>
+                                <label><input type="checkbox" name="scope" value="web_cache" id="scope-web-cache"> Web Cache</label>
+                                <label><input type="checkbox" name="scope" value="reference_papers" id="scope-reference"> References</label>
+                                <label><input type="checkbox" name="scope" value="my_papers" id="scope-authored"> My Papers</label>
+                                <label><input type="checkbox" name="scope" value="notes" id="scope-notes"> Notes</label>
+                                <label><input type="checkbox" name="scope" value="sessions" id="scope-sessions"> Sessions</label>
+                                <label><input type="checkbox" name="scope" value="user_uploads" id="scope-uploads"> Uploads</label>
+                                <label><input type="checkbox" name="scope" value="news_articles" id="scope-news"> News Articles</label>
+                                <label><input type="checkbox" name="scope" value="twistednews" id="scope-twistednews"> TwistedNews</label>
+                            </div>
+                        </div>
+
+                        <!-- Search Mode -->
+                        <div class="sidebar-section">
+                            <h3>Search Mode</h3>
+                            <div class="seg-btn-group" id="search-mode-group">
+                                <button class="seg-btn seg-btn-active" data-value="semantic">Semantic</button>
+                                <button class="seg-btn" data-value="keyword">Keyword</button>
+                                <button class="seg-btn" data-value="both">Both</button>
+                            </div>
+                        </div>
+
+                        <!-- Upload Files -->
+                        <div class="sidebar-section">
+                            <h3>Upload File</h3>
+                            <input type="file" id="file-upload-input" accept=".pdf,.txt,.csv,.md,.markdown" style="display:none;">
+                            <button class="btn-secondary" id="upload-btn">Upload</button>
+                            <div id="upload-status" class="upload-status"></div>
+                        </div>
+
+                        <!-- Index Management -->
+                        <div class="sidebar-section">
+                            <h3>Update Index</h3>
+                            <button class="btn-secondary" id="update-keyword-index-btn">Keyword Index</button>
+                            <button class="btn-secondary" id="update-faiss-index-btn">FAISS Index</button>
+                            <div id="index-status" class="index-status"></div>
+                        </div>
+
+                        <!-- LLM Settings (collapsed by default) -->
+                        <details class="sidebar-section collapsible-section">
+                            <summary>LLM Settings</summary>
+                            <div class="collapsible-content">
+                                <label>Model</label>
+                                <select id="model-select" disabled>
+                                    <option value="">Loading models...</option>
+                                </select>
+
+                                <label>Context Size</label>
+                                <input type="number" value="128000" min="4000" max="1000000" step="1000">
+                                
+                                <label>Mode</label>
+                                <select id="distortion-mode">
+                                    <option value="off">Off</option>
+                                    <option value="echo_er">Echo-er (Amplify)</option>
+                                    <option value="invert_er">Invert-er (Negate)</option>
+                                    <option value="what_if_er">What-if-er (Alternatives)</option>
+                                    <option value="so_what_er">So-what-er (Implications)</option>
+                                    <option value="cucumb_er">Cucumb-er (Academic)</option>
+                                    <option value="archiv_er">Archiv-er (Historical)</option>
+                                </select>
+
+                                <label>Tone</label>
+                                <select id="distortion-tone">
+                                    <option value="neutral">Neutral</option>
+                                    <option value="technical">Technical</option>
+                                    <option value="primal">Primal</option>
+                                    <option value="poetic">Poetic</option>
+                                    <option value="satirical">Satirical</option>
+                                </select>
+
+                                <label>Gain <span id="gain-value" class="range-value">5</span></label>
+                                <input type="range" id="distortion-gain" min="1" max="10" step="1" value="5">
+
+                                <div class="checkbox-row">
+                                    <label>
+                                        <input type="checkbox" id="ensemble-mode">
+                                        Ensemble Mode (All 6)
+                                    </label>
+                                </div>
+                                <div class="checkbox-row">
+                                    <label>
+                                        <input type="checkbox" id="conversation-context" checked>
+                                        Include Conversation Context
+                                    </label>
+                                </div>
+                            </div>
+                        </details>
+
+                    </div><!-- /.sidebar-content -->
+                </aside>
+
+                <!-- Main Content Area -->
+                <main class="main-content">
+                    <!-- Query Box -->
+                    <div class="query-section">
+                        <textarea id="query-input" class="query-box"
+                            placeholder="Enter your search query or question..."></textarea>
+                        <div class="query-actions">
+                            <button class="btn-primary" id="send-query-btn">Send</button>
+                            <button class="btn-secondary" id="clear-query-btn" title="Clear query text">🗑️ Clear</button>
+                            <button class="btn-secondary" id="new-chat-btn" title="Start a new conversation">New Chat</button>
+                        </div>
+                    </div>
+
+                    <!-- Chat / Results Area -->
+                    <div class="chat-messages" id="chat-messages">
+                        <div class="exchange-container" id="welcome-exchange">
+                            <div class="exchange-header">
+                                <span class="exchange-summary">💬 Welcome to TwistedCollab</span>
+                                <span class="exchange-toggle">▼</span>
+                            </div>
+                            <div class="exchange-content">
+                                <div class="message assistant">
+                                    <div class="message-avatar">🤖</div>
+                                    <div class="message-content">
+                                        <p>Hello! I'm TwistedCollab. I can help you:</p>
+                                        <ul style="margin-top:0.5rem;padding-left:1.5rem;">
+                                            <li>Search across reference papers, authored papers, sessions, and web cache</li>
+                                            <li>Perform live web searches</li>
+                                            <li>Answer questions using local Ollama LLMs</li>
+                                            <li>Apply rhetorical distortion via TwistedPair</li>
+                                            <li>Write and manage Markdown notes</li>
+                                        </ul>
+                                        <p style="margin-top:0.75rem;">Select data sources on the left, then type your query.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+
+                <!-- Mini Notepad (Quick Notes) -->
+                <aside class="mini-notepad">
+                    <h3>Quick Notes</h3>
+                    <textarea id="mini-notepad-area" class="mini-notepad-area"
+                        placeholder="Quick notes while searching..."></textarea>
+                </aside>
+
+            </div><!-- /.layout -->
+        </div><!-- /#search-tab -->
+
+        <!-- ============================================================
+             NOTES TAB
+             ============================================================ -->
+        <div class="tab-content" id="notes-tab">
+            <div class="notes-layout">
+                <div class="notes-toolbar">
+                    <div class="toolbar-left">
+                        <button class="toolbar-btn" id="notepad-new" title="New (Ctrl+N)">New</button>
+                        <button class="toolbar-btn" id="notepad-open" title="Open (Ctrl+O)">Open</button>
+                        <button class="toolbar-btn" id="notepad-save" title="Save to Server (Ctrl+S)">Save</button>
+                        <button class="toolbar-btn" id="notepad-download" title="Download to Local (Ctrl+Shift+S)">Download</button>
+                        <button class="toolbar-btn" id="notepad-close" title="Close">Close</button>
+                        <button class="toolbar-btn preview-btn" data-mode="edit">Edit</button>
+                        <button class="toolbar-btn preview-btn" data-mode="split">Split</button>
+                        <button class="toolbar-btn preview-btn" data-mode="preview">Preview</button>
+                    </div>
+                    <div class="toolbar-center">
+                        <span class="filename-display" id="filename-display">Untitled.md</span>
+                        <span class="unsaved-indicator" id="unsaved-indicator" style="display:none;">●</span>
+                    </div>
+                    <div class="toolbar-right">
+                        <span class="char-count" id="char-count">0 chars</span>
+                    </div>
+                </div>
+                <div class="notes-editor-container" id="notes-editor-container">
+                    <div class="editor-pane active" id="editor-pane">
+                        <textarea id="notepad-editor" class="notepad-editor"
+                            placeholder="Start writing your notes here... (Markdown supported)"></textarea>
+                    </div>
+                    <div class="preview-pane" id="preview-pane">
+                        <div class="markdown-preview" id="markdown-preview"></div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /#notes-tab -->
+
+        <!-- ============================================================
+             SESSIONS TAB
+             ============================================================ -->
+        <div class="tab-content" id="sessions-tab">
+            <div class="sessions-layout">
+                <div class="sessions-header">
+                    <button class="btn-primary" id="new-session-btn">+ New Session</button>
+                    <input type="text" id="sessions-search-input" class="sessions-search" placeholder="Search sessions...">
+                </div>
+                <div class="sessions-list" id="session-list">
+                    <!-- Sessions populated by JS -->
+                    <div class="session-item active">
+                        <div class="session-header">
+                            <span class="session-title">Current Session</span>
+                            <span class="session-time">Just now</span>
+                        </div>
+                        <div class="session-preview">Active session</div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /#sessions-tab -->
+
+        <!-- ============================================================
+             COLLAB TAB (placeholder)
+             ============================================================ -->
+        <div class="tab-content" id="collab-tab">
+            <div class="collab-placeholder">
+                <h2>🤝 Collab</h2>
+                <p>Agentic workflow features coming soon.</p>
+            </div>
+        </div><!-- /#collab-tab -->
+
+        <!-- ============================================================
+             HELP MODAL
+             ============================================================ -->
+        <div id="help-modal" class="modal" style="display:none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>TwistedCollab — Quick Guide</h2>
+                    <button class="modal-close" id="close-help">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="help-section">
+                        <h3>🔍 Search Tab</h3>
+                        <ul>
+                            <li><strong>Data Source:</strong> Select which sources to include in RAG retrieval. When none are selected the query goes directly to the LLM chat.</li>
+                            <li><strong>Upload Files:</strong> Add documents to your user_uploads collection.</li>
+                            <li><strong>LLM Settings:</strong> Configure model, temperature and token limits (collapsed by default).</li>
+                            <li><strong>Distortion:</strong> Set Mode to anything other than <em>Off</em> to enable TwistedPair rhetorical distortion. Default is Off.</li>
+                            <li><strong>Quick Notes:</strong> Mini notepad on the right for jotting during research.</li>
+                        </ul>
+                    </div>
+                    <div class="help-section">
+                        <h3>📝 Notes Tab</h3>
+                        <ul>
+                            <li><strong>Markdown Editor</strong> with GFM support and live preview.</li>
+                            <li><strong>Preview Modes:</strong> Edit / Split (side-by-side) / Preview.</li>
+                            <li><strong>Auto-save:</strong> Notes saved every 30 seconds.</li>
+                        </ul>
+                    </div>
+                    <div class="help-section">
+                        <h3>💬 Sessions Tab</h3>
+                        <ul>
+                            <li>Browse all past conversations grouped by date.</li>
+                            <li>Click any session to resume it.</li>
+                        </ul>
+                    </div>
+                    <div class="help-section">
+                        <h3>⌨️ Keyboard Shortcuts</h3>
+                        <ul>
+                            <li><kbd>Ctrl+S</kbd> — Save current note</li>
+                            <li><kbd>Ctrl+N</kbd> — New note (Notes tab)</li>
+                            <li><kbd>Ctrl+O</kbd> — Open note (Notes tab)</li>
+                            <li><kbd>Ctrl+Shift+S</kbd> — Download note</li>
+                            <li><kbd>Ctrl+E</kbd> — Cycle preview modes (Notes tab)</li>
+                        </ul>
+                    </div>
+                    <div class="help-section">
+                        <h3>🔌 Status Indicators</h3>
+                        <ul>
+                            <li><strong>Green (pulsing):</strong> Service online</li>
+                            <li><strong>Red:</strong> Service offline or unreachable</li>
+                        </ul>
+                    </div>
+                    <div class="help-section">
+                        <h3>🎸 Distortion Modes</h3>
+                        <ul>
+                            <li><strong>Off</strong> — No distortion (default)</li>
+                            <li><strong>Echo-er</strong> — Amplify / positive framing</li>
+                            <li><strong>Invert-er</strong> — Negate / challenge assumptions</li>
+                            <li><strong>What-if-er</strong> — Explore alternatives</li>
+                            <li><strong>So-what-er</strong> — Demand implications</li>
+                            <li><strong>Cucumb-er</strong> — Academic / analytical</li>
+                            <li><strong>Archiv-er</strong> — Historical context</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /.container -->
+
+    <!-- File Open Modal -->
+    <div id="file-modal" class="modal" style="display:none;">
+        <div class="modal-content file-modal-content">
+            <div class="modal-header">
+                <h2>📂 Open Markdown File</h2>
+                <button class="modal-close" id="file-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="file-loading" class="loading-spinner" style="display:none;"><p>Loading files...</p></div>
+                <div id="file-list" class="file-list"></div>
+            </div>
+            <div class="modal-footer">
+                <span id="file-count-display">0 files</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
+
