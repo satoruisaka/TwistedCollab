@@ -1,4 +1,4 @@
-# TwistedCollab2
+# TwistedCollab
 
 > **Local-first AI research assistant** — semantic search, keyword search, RAG-powered chat, Markdown notes, and rhetorical distortion via TwistedPair. Fully self-contained; no cloud dependencies.
 
@@ -31,7 +31,7 @@ Created: February 2026
 
 ## Overview
 
-TwistedCollab2 is a local-first AI research assistant built on FastAPI + Ollama. It provides a full-featured web UI for:
+TwistedCollab is a local-first AI research assistant built on FastAPI + Ollama. It provides a full-featured web UI for:
 
 - **RAG-augmented chat** — answers grounded in your own document collections
 - **Semantic search** — vector similarity via FAISS (`IndexFlatIP`, cosine similarity)
@@ -45,7 +45,7 @@ TwistedCollab2 is a local-first AI research assistant built on FastAPI + Ollama.
 
 ## Key Improvements Over MRA
 
-| Feature | MRA | TwistedCollab2 |
+| Feature | MRA | TwistedCollab |
 |---|---|---|
 | Index architecture | Dual-index (HNSW main + Flat delta) | Single-stage `IndexFlatIP` — simpler, faster, no merge overhead |
 | Search modes | Semantic only | **Semantic / Keyword / Both** (user-selectable, segmented UI) |
@@ -98,7 +98,7 @@ External services (local):
 ## Installation
 
 ```bash
-cd TwistedCollab2
+cd TwistedCollab
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -144,8 +144,8 @@ ollama serve
 cd ../TwistedPair/V2
 uvicorn server:app --host 0.0.0.0 --port 8001
 
-# 3. Start TwistedCollab2
-cd TwistedCollab2
+# 3. Start TwistedCollab
+cd TwistedCollab
 source .venv/bin/activate
 uvicorn server:app --host 0.0.0.0 --port 8000 --reload
 ```
@@ -383,7 +383,7 @@ Sessions are resumable from the Sessions tab. Closed sessions are auto-indexed s
 ## Data Directory Layout
 
 ```
-TwistedCollab2/
+TwistedCollab/
 ├── data/
 │   ├── markdown/
 │   │   ├── reference_papers/   ← converted PDFs from MyReferences
@@ -440,4 +440,10 @@ TwistedCollab2/
 
 ---
 
-*TwistedCollab2 — local, private, and ready for agentic collaboration.*
+## License
+
+MIT License
+
+## Created and last update
+
+February 22, 2026
