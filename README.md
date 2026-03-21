@@ -1,8 +1,8 @@
-# TwistedCollab
+# TwistedCollab3
 
-> **Local-first AI research assistant** — semantic search, keyword search, RAG-powered chat, Markdown notes, and rhetorical distortion via TwistedPair. Fully self-contained; no cloud dependencies.
+> **Local-first AI research assistant** — semantic search, keyword search, RAG-powered chat, Markdown notes, rhetorical distortion via TwistedPair, and **agentic skill execution** with multi-step LLM workflows. Fully self-contained; no cloud dependencies.
 
-Created: February 2026
+Created: February 2026 · Updated: March 2026
 
 ---
 
@@ -20,12 +20,13 @@ Created: February 2026
 10. [RAG Pipeline](#rag-pipeline)
 11. [TwistedPair Distortion](#twistedpair-distortion)
 12. [Web Search](#web-search)
-13. [Index Management](#index-management)
-14. [Session Management](#session-management)
-15. [API Reference](#api-reference)
-16. [Data Directory Layout](#data-directory-layout)
-17. [Module Reference](#module-reference)
-18. [Environment Variables](#environment-variables)
+13. [Agentic Skill System](#agentic-skill-system)
+14. [Index Management](#index-management)
+15. [Session Management](#session-management)
+16. [API Reference](#api-reference)
+17. [Data Directory Layout](#data-directory-layout)
+18. [Module Reference](#module-reference)
+19. [Environment Variables](#environment-variables)
 
 ---
 
@@ -40,6 +41,7 @@ TwistedCollab is a local-first AI research assistant built on FastAPI + Ollama. 
 - **Rhetorical distortion** — TwistedPair integration for six modes of perspective reframing
 - **Markdown notes** — built-in editor with live preview, saved to server
 - **Session history** — every conversation auto-saved, searchable, and indexable
+- **Agentic skills** — multi-step LLM workflows executed by specialised agents, triggered from the Collab tab with live SSE progress and auto-saved Markdown results
 
 ---
 
@@ -57,7 +59,7 @@ TwistedCollab is a local-first AI research assistant built on FastAPI + Ollama. 
 | Streaming | No | **SSE token streaming** for all chat responses |
 | Auto-indexing | Manual | Sessions and web cache auto-indexed on save |
 | File upload | None | Upload PDF/TXT/CSV/MD into `user_uploads` source |
-| Collab | None | Placeholder for **upcoming agentic workflow** |
+| Collab | None | Placeholder for **upcoming agentic workflow** | **Full agentic skill runner** — multi-step workflows, SSE progress, saved results |
 
 ---
 
@@ -74,7 +76,17 @@ Browser (index.html + app.js)
   │   └── KeywordIndexer    ← FTS5 full-text search (SQLite)
   ├── WebSearchClient       ← Brave API + DDG fallback + caching
   ├── OllamaClient          ← LLM generation via Ollama REST API
-  └── TwistedPairClient     ← rhetorical distortion via TwistedPair V4
+  ├── TwistedPairClient     ← rhetorical distortion via TwistedPair V4
+  └── Skill System
+      ├── SkillRegistry     ← lazy-loads YAML skill definitions
+      ├── SkillRunner       ← job queue, subprocess + RLIMIT_CPU
+      ├── SkillOrchestrator ← sequential workflow executor
+      └── Agents
+          ├── SearchAgent         ← FAISS + keyword via /api/search
+          ├── FilterAgent         ← LLM relevance scoring
+          ├── SummarizationAgent  ← LLM synthesis
+          ├── WebDiscoveryAgent   ← web search via /api/web-search
+          └── ExtractionAgent     ← LLM source ranking + annotation
 
 External services (local):
   Ollama       localhost:11434   (LLM inference)
@@ -196,17 +208,163 @@ Full Markdown editor:
 - Live filter box to search session titles and previews
 - Sessions stored as JSON + Markdown in `data/sessions/`
 
-### Collab Tab (Coming Soon)
+### Collab Tab
 
-Placeholder for the **Agentic Workflow** feature. Planned capabilities:
-- Multi-agent orchestration within TwistedCollab
-- Agent-to-agent collaboration with role assignment
-- Structured research pipelines with human-in-the-loop checkpoints
-- TwistedPair integration for perspective diversification across agents
+The **Agentic Skill Runner**. Executes multi-step LLM workflows driven by YAML skill definitions.
+
+**Left sidebar:**
+- **Skill Library** — all registered skills loaded from `skills/*.yaml`; click a card to select
+- **Parameters** — dynamically rendered form for each skill's declared parameters
+  - `str` / `int` → text or number input with min/max constraints
+  - `dict` (e.g. `search_scope`) → checkbox grid, one checkbox per key
+- **Run Skill** — disabled while a job is running (single-run guard)
+- **Recent Jobs** — last 5 jobs with status badge; click a completed job to restore its output
+
+**Main panel:**
+- Step-by-step progress bar with spinner → checkmark transitions (SSE-driven)
+- Live status message showing current agent and action
+- Rendered Markdown report with **Copy Report** button
+- Source list (with clickable links for web-sourced results)
+- Output persists when switching away and back to the tab
+
+**Right sidebar:**
+- **Saved Results** — all previously generated skill outputs, newest first
+- Click any item to reload its Markdown into the main panel
+- Hover-reveal ✕ delete button with confirmation
+- Auto-refreshes after every completed skill run
+
+Completed skill results are automatically saved as Markdown files to `data/markdown/skills/`.
 
 ---
 
-## Search System
+## Agentic Skill System
+
+The skill system lets you define and run multi-step LLM workflows entirely through the Collab tab UI, with live progress feedback and persistent output.
+
+### Concepts
+
+| Concept | Description |
+|---|---|
+| **Skill** | A named workflow declared in a YAML file under `skills/`. Defines parameters, agent roles, and step order. |
+| **Agent** | A Python class that implements one specific action (e.g. web search, LLM scoring). Stateless; communicates only via HTTP. |
+| **Orchestrator** | Executes steps sequentially, passing each step's output into the next step's inputs via a shared context dict. |
+| **Runner** | Manages a job queue; each skill run executes in a daemon thread with resource limits. |
+
+### Built-in Skills
+
+#### `literature_review`
+Automated 3-step literature review over your indexed document collections.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `topic` | str | — | Research topic (required) |
+| `max_papers` | int | 20 | Papers retrieved in initial search (5–50) |
+| `top_n` | int | 10 | Top-scored papers passed to synthesizer (3–20) |
+| `search_scope` | dict | refs + my papers | Which FAISS/FTS5 indices to search |
+
+**Steps:** `search_agent` → `filter_agent` → `summarization_agent`
+
+**Output:** Structured Markdown report with Executive Summary, Key Themes, Synthesis, Gaps, and Conclusion, plus a ranked source list.
+
+---
+
+#### `literature_discovery`
+Discovers new sources via live web search, then ranks and annotates them with an LLM.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `topic` | str | — | Research topic (required) |
+| `site_filter` | str | *(open web)* | Restrict to a domain, e.g. `arxiv.org`, `pubmed.ncbi.nlm.nih.gov` |
+| `num_results` | int | 20 | Web results to retrieve (5–50) |
+| `top_n` | int | 15 | Top-ranked sources to return (3–30) |
+
+**Steps:** `web_discovery_agent` → `extraction_agent`
+
+**Output:** Ranked list of sources with title, URL, relevance score (0–10), and one-sentence annotation per source.
+
+---
+
+### Built-in Agents
+
+| Role | File | Action | Uses |
+|---|---|---|---|
+| `search_agent` | `agents/search_agent.py` | `search_literature` | `POST /api/search` (FAISS + FTS5) |
+| `filter_agent` | `agents/filter_agent.py` | `filter_by_relevance` | Ollama LLM — scores 0–10 |
+| `summarization_agent` | `agents/summarization_agent.py` | `synthesize` | Ollama LLM — structured 5-section review |
+| `web_discovery_agent` | `agents/web_discovery_agent.py` | `discover_sources` | `POST /api/web-search` (Brave/DDG) |
+| `extraction_agent` | `agents/extraction_agent.py` | `extract_sources` | Ollama LLM — ranks + annotates results |
+
+### Adding a New Skill
+
+Three steps, no server restart required:
+
+**1. Create an agent** (if a new action is needed):
+```python
+# agents/my_agent.py
+from agents.base_agent import BaseAgent
+
+class MyAgent(BaseAgent):
+    role = "my_agent"
+
+    def run_action(self, action, inputs):
+        if action == "my_action":
+            return self._do_something(inputs)
+        raise ValueError(f"Unknown action: {action}")
+```
+
+**2. Register it** in `agents/registry.py` → `register_all_agents()`:
+```python
+from agents.my_agent import MyAgent
+AgentRegistry.register(MyAgent)
+```
+
+**3. Create a YAML skill definition** in `skills/my_skill.yaml`:
+```yaml
+name: my_skill
+version: "1.0"
+description: "What this skill does."
+parameters:
+  topic:
+    type: str
+    required: true
+agents:
+  - role: my_agent
+    name: "My Step"
+workflow:
+  pattern: sequential
+  steps:
+    - step: 1
+      agent: my_agent
+      action: my_action
+      output: final_report
+security:
+  max_execution_time: 300
+  max_memory_mb: 256
+```
+
+Then hot-reload without restarting the server:
+```bash
+curl -X POST http://localhost:8000/api/skills/reload
+```
+
+### Skill YAML Parameter Types
+
+| `type` | UI element | Notes |
+|---|---|---|
+| `str` | Text input | Set `required: true` to enforce |
+| `int` | Number input | Respects `min_value` / `max_value` |
+| `str` with `allowed_values` | Dropdown select | List valid options |
+| `dict` | Checkbox grid | Each key becomes a labelled checkbox; defaults set initial state |
+
+### Saved Results
+
+Every completed skill run is automatically saved to `data/markdown/skills/` as:
+```
+<skill_name>_<topic>_<YYYYMMDD_HHMMSS>.md
+```
+The file contains the full report, source list, and a parseable `<!-- meta ... -->` comment used by the history panel.
+
+
 
 ### Semantic Search (FAISS)
 
@@ -350,6 +508,15 @@ Sessions are resumable from the Sessions tab. Closed sessions are auto-indexed s
 | GET | `/api/notes/{filename}` | Load a note |
 | PUT | `/api/notes/{filename}` | Save a note |
 | GET | `/api/health` | Health — Ollama, TwistedPair, embedder, GPU |
+| POST | `/api/skills/run/stream` | Run a skill with SSE progress stream |
+| POST | `/api/skills/run` | Submit skill as async job (returns job_id) |
+| GET | `/api/skills/status/{job_id}` | Poll job status and result |
+| GET | `/api/skills/list` | List all registered skill definitions |
+| GET | `/api/skills/jobs` | List all skill jobs |
+| POST | `/api/skills/reload` | Hot-reload skill YAML files from disk |
+| GET | `/api/skills/results` | List saved skill result Markdown files |
+| GET | `/api/skills/results/{filename}` | Read a saved skill result |
+| DELETE | `/api/skills/results/{filename}` | Delete a saved skill result |
 
 ### Key Chat Request Fields
 
@@ -389,6 +556,7 @@ TwistedCollab/
 │   │   ├── reference_papers/   ← converted PDFs from MyReferences
 │   │   ├── my_papers/          ← converted PDFs from MyAuthoredPapers
 │   │   ├── notes/              ← saved Markdown notes
+│   │   ├── skills/             ← auto-saved skill result Markdown files
 │   │   ├── user_uploads/       ← files uploaded via UI
 │   │   ├── news_articles/      ← news from NewsAgent
 │   │   └── twistednews/        ← rhetorical news from TwistedNews
@@ -425,6 +593,20 @@ TwistedCollab/
 | `config.py` | All configuration constants and directory setup |
 | `errors.py` | Shared exception types and retry decorator |
 | `utils/embedder.py` | `BAAI/bge-large-en-v1.5` embedding wrapper |
+| `agents/base_agent.py` | Abstract base for all agents — `_search()`, `_llm_chat()` helpers |
+| `agents/registry.py` | Maps role strings → agent classes; `register_all_agents()` |
+| `agents/orchestrator.py` | Sequential workflow executor with SSE progress callbacks |
+| `agents/runner.py` | Job queue + daemon thread execution with resource limits |
+| `agents/worker.py` | Subprocess entry point (`python -m agents.worker`) |
+| `agents/search_agent.py` | FAISS + keyword retrieval agent |
+| `agents/filter_agent.py` | LLM relevance scoring agent |
+| `agents/summarization_agent.py` | LLM literature review synthesis agent |
+| `agents/web_discovery_agent.py` | Web search agent with optional site: filter |
+| `agents/extraction_agent.py` | LLM source ranking and annotation agent |
+| `skills/skill_schema.py` | Pydantic models for YAML skill definitions |
+| `skills/skill_registry.py` | Lazy YAML loader and cache for skill definitions |
+| `skills/literature_review.yaml` | 3-step literature review skill definition |
+| `skills/literature_discovery.yaml` | 2-step web discovery + extraction skill definition |
 
 ---
 
@@ -444,6 +626,7 @@ TwistedCollab/
 
 MIT License
 
-## Created and last update
+## Created and last updated
 
-February 22, 2026
+Created: February 22, 2026  
+Last updated: March 21, 2026 — added agentic skill system (Collab tab, agents package, skills package)

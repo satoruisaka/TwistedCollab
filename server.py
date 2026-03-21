@@ -35,6 +35,8 @@ from web_search import WebSearchClient
 from ollama_client import OllamaClient
 from twistedpair_client import TwistedPairClient, DistortionMode, DistortionTone
 from config import NUM_CTX, DEFAULT_MODEL, MAX_OUTPUT_TOKENS, MAX_TEMPERATURE, MAX_TOP_P, MAX_TOP_K
+from agents.runner import SkillRunner, get_runner, JobStatus
+from skills.skill_registry import SkillRegistry
 
 
 # Configure logging
@@ -190,12 +192,13 @@ retrieval_manager: Optional[RetrievalManager] = None
 web_search: Optional[WebSearchClient] = None
 ollama_client: Optional[OllamaClient] = None
 twistedpair_client: Optional[TwistedPairClient] = None
+skill_runner: Optional[SkillRunner] = None
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize all components on startup."""
-    global chat_manager, retrieval_manager, web_search, ollama_client, twistedpair_client
+    global chat_manager, retrieval_manager, web_search, ollama_client, twistedpair_client, skill_runner
     
     logger.info("Starting TwistedCollab server...")
     
@@ -215,6 +218,11 @@ async def startup_event():
             sessions_dir="data/sessions",
             verbose=True
         )
+
+        # Initialize skill runner (uses this server's /api/search endpoint)
+        skill_runner = get_runner(server_url="http://localhost:8000")
+        SkillRegistry.reload()  # Pre-load all YAML skill definitions
+        logger.info("Skill runner initialized with %d skills", len(SkillRegistry.list_all()))
         
         logger.info("All components initialized successfully")
         
@@ -1252,6 +1260,326 @@ async def read_news_article(filename: str):
     except Exception as e:
         logger.error(f"Read news article error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Skill System Endpoints
+# ============================================================================
+
+class SkillRunRequest(BaseModel):
+    """Request for POST /api/skills/run"""
+    skill_name: str = Field(..., description="Registered skill name (e.g. 'literature_review')")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Skill-specific parameters")
+    session_id: Optional[str] = Field(None, description="Active chat session ID (optional)")
+
+
+class SkillRunResponse(BaseModel):
+    """Response for POST /api/skills/run"""
+    job_id: str
+    skill_name: str
+    status: str
+    message: str
+
+
+class SkillStatusResponse(BaseModel):
+    """Response for GET /api/skills/status/{job_id}"""
+    job_id: str
+    skill_name: str
+    status: str
+    result: Optional[Dict[str, Any]]
+    error: Optional[str]
+    progress: List[Dict[str, Any]]
+    started_at: Optional[str]
+    completed_at: Optional[str]
+
+
+@app.post("/api/skills/run/stream")
+async def run_skill_stream(request: SkillRunRequest):
+    """
+    Run a skill and stream progress via Server-Sent Events (SSE).
+
+    Events emitted during execution:
+      {"type": "step_start",    "step": N, "total": T, "agent": "...", "action": "..."}
+      {"type": "step_complete", "step": N, "total": T, "agent": "...", "action": "...", "output_key": "..."}
+      {"type": "done",          "status": "completed", "skill": "...", "result": {...}}
+      {"type": "error",         "error": "..."}
+
+    The client can display live progress and read the final result from
+    the "done" event without polling a separate status endpoint.
+    """
+    import asyncio
+    import queue as _queue
+    import threading
+
+    from agents.orchestrator import SkillOrchestrator
+    from agents.registry import register_all_agents
+    from skills.skill_registry import SkillRegistry
+
+    skill_def = SkillRegistry.get(request.skill_name)
+    if skill_def is None:
+        raise HTTPException(status_code=400, detail=f"Unknown skill: '{request.skill_name}'")
+
+    try:
+        validated_params = skill_def.validate_params(request.params)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    loop = asyncio.get_event_loop()
+    # thread-safe queue: orchestrator (thread) → SSE generator (async)
+    event_q: asyncio.Queue = asyncio.Queue()
+    _sentinel = object()  # signals end-of-stream
+
+    def _push(event: dict):
+        """Called by SkillOrchestrator on each progress event (runs in thread)."""
+        loop.call_soon_threadsafe(event_q.put_nowait, event)
+
+    def _run_in_thread():
+        """Executes the orchestrator in a daemon thread."""
+        try:
+            register_all_agents()
+
+            # Wrap _push to also save on 'done'
+            def _push_and_save(event: dict):
+                _push(event)
+                if event.get("type") == "done":
+                    try:
+                        _save_skill_result(event, request.skill_name, validated_params)
+                    except Exception as save_err:
+                        logger.warning("Could not save skill result: %s", save_err)
+
+            orchestrator = SkillOrchestrator(
+                skill_def=skill_def,
+                server_url=skill_runner.server_url,
+                session_id=request.session_id,
+                progress_callback=_push_and_save,
+            )
+            orchestrator.run(validated_params)
+        except Exception as exc:
+            loop.call_soon_threadsafe(
+                event_q.put_nowait, {"type": "error", "error": str(exc)}
+            )
+        finally:
+            loop.call_soon_threadsafe(event_q.put_nowait, _sentinel)
+
+    thread = threading.Thread(target=_run_in_thread, daemon=True)
+    thread.start()
+
+    async def event_generator():
+        while True:
+            item = await event_q.get()
+            if item is _sentinel:
+                break
+            yield f"data: {json_lib.dumps(item)}\n\n"
+            await asyncio.sleep(0)  # yield to event loop
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/api/skills/run", response_model=SkillRunResponse)
+async def run_skill(request: SkillRunRequest):
+    """
+    Submit a skill for async execution.
+
+    Returns a job_id immediately.  Poll GET /api/skills/status/{job_id}
+    to check progress and retrieve the result when status == 'completed'.
+    """
+    try:
+        job_id = skill_runner.submit(
+            skill_name=request.skill_name,
+            params=request.params,
+            session_id=request.session_id,
+        )
+        return SkillRunResponse(
+            job_id=job_id,
+            skill_name=request.skill_name,
+            status=JobStatus.PENDING.value,
+            message=f"Skill '{request.skill_name}' queued as job {job_id}",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.error("Skill run error: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/skills/status/{job_id}", response_model=SkillStatusResponse)
+async def skill_status(job_id: str):
+    """
+    Poll the status and result of a queued skill job.
+
+    Status values: pending | running | completed | failed | timeout
+    """
+    job = skill_runner.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+    return SkillStatusResponse(
+        job_id=job.job_id,
+        skill_name=job.skill_name,
+        status=job.status.value,
+        result=job.result,
+        error=job.error,
+        progress=job.progress,
+        started_at=job.started_at,
+        completed_at=job.completed_at,
+    )
+
+
+@app.get("/api/skills/list")
+async def list_skills():
+    """Return all registered skill definitions."""
+    skills = SkillRegistry.list_all()
+    return {
+        "skills": [
+            {
+                "name": s.name,
+                "version": s.version,
+                "description": s.description,
+                "parameters": {
+                    k: {
+                        "type": v.type,
+                        "required": v.required,
+                        "default": v.default,
+                        "description": v.description,
+                    }
+                    for k, v in s.parameters.items()
+                },
+                "agents": [a.dict() for a in s.agents],
+                "workflow_pattern": s.workflow.get("pattern", "sequential"),
+                "security": s.security,
+            }
+            for s in skills.values()
+        ],
+        "count": len(skills),
+    }
+
+
+@app.get("/api/skills/jobs")
+async def list_skill_jobs():
+    """Return all skill jobs (active and completed)."""
+    return {"jobs": skill_runner.list_jobs(), "count": len(skill_runner._jobs)}
+
+
+# ---------------------------------------------------------------------------
+# Markdown result persistence helpers
+# ---------------------------------------------------------------------------
+
+_SKILLS_MD_DIR = Path("data/markdown/skills")
+
+
+def _save_skill_result(done_event: dict, skill_name: str, params: dict) -> Path:
+    """Persist a completed skill result as a Markdown file."""
+    _SKILLS_MD_DIR.mkdir(parents=True, exist_ok=True)
+    result = done_event.get("result", {})
+    topic = params.get("topic", "")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_topic = "".join(c if c.isalnum() or c in "-_ " else "_" for c in topic)[:60].strip()
+    filename = f"{skill_name}_{safe_topic}_{ts}.md".replace(" ", "_")
+    filepath = _SKILLS_MD_DIR / filename
+
+    report = result.get("report") or result.get("final_report", {}).get("report", "")
+    sources = result.get("sources") or result.get("final_report", {}).get("sources", [])
+
+    lines = [
+        f"# {skill_name.replace('_', ' ').title()}",
+        f"",
+        f"**Topic:** {topic}  ",
+        f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  ",
+        f"**Skill:** `{skill_name}`",
+        f"",
+        "---",
+        f"",
+        report or "*(no report generated)*",
+    ]
+
+    if sources:
+        lines += ["", "---", "", "## Sources", ""]
+        for s in sources:
+            lines.append(f"- [{s.get('filename', s)}] relevance: {s.get('relevance_score', 0):.1f}")
+
+    # Metadata block at end for the list endpoint to parse quickly
+    lines += [
+        "",
+        "---",
+        f"<!-- meta skill={skill_name} topic={json_lib.dumps(topic)} ts={ts} -->",
+    ]
+
+    filepath.write_text("\n".join(lines), encoding="utf-8")
+    logger.info("Saved skill result → %s", filepath)
+    return filepath
+
+
+@app.get("/api/skills/results")
+async def list_skill_results():
+    """List all saved skill result markdown files, newest first."""
+    import re
+    _SKILLS_MD_DIR.mkdir(parents=True, exist_ok=True)
+    files = sorted(_SKILLS_MD_DIR.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+    results = []
+    meta_re = re.compile(r'<!-- meta skill=(\S+) topic=(.*?) ts=(\S+) -->')
+    for f in files:
+        try:
+            tail = f.read_text(encoding="utf-8")[-300:]
+            m = meta_re.search(tail)
+            results.append({
+                "filename": f.name,
+                "skill": m.group(1) if m else "",
+                "topic": json_lib.loads(m.group(2)) if m else "",
+                "ts": m.group(3) if m else "",
+                "size": f.stat().st_size,
+                "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+            })
+        except Exception:
+            pass
+    return {"results": results, "count": len(results)}
+
+
+@app.get("/api/skills/results/{filename}")
+async def get_skill_result(filename: str):
+    """Return the markdown content of a saved skill result."""
+    import re
+    # Sanitize: only allow plain filenames, no path traversal
+    if "/" in filename or "\\" in filename or not filename.endswith(".md"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    filepath = _SKILLS_MD_DIR / filename
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="Result not found")
+    content = filepath.read_text(encoding="utf-8")
+    # Strip trailing meta comment before returning
+    content = re.sub(r'\n---\n<!-- meta .+-->\s*$', '', content, flags=re.DOTALL)
+    return {"filename": filename, "content": content}
+
+
+@app.delete("/api/skills/results/{filename}")
+async def delete_skill_result(filename: str):
+    """Delete a saved skill result file."""
+    if "/" in filename or "\\" in filename or not filename.endswith(".md"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    filepath = _SKILLS_MD_DIR / filename
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="Result not found")
+    filepath.unlink()
+    return {"status": "deleted", "filename": filename}
+
+
+@app.post("/api/skills/reload")
+async def reload_skills():
+    """Force reload of all skill YAML definitions from disk."""
+    SkillRegistry.reload()
+    skills = SkillRegistry.list_all()
+    return {
+        "status": "reloaded",
+        "skills_loaded": list(skills.keys()),
+        "count": len(skills),
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 # ============================================================================

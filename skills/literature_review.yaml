@@ -1,0 +1,90 @@
+# Literature Review Skill
+# Version 1.0
+#
+# Automated multi-step literature review:
+#   Step 1 – SearchAgent retrieves papers matching the topic.
+#   Step 2 – FilterAgent scores and selects the most relevant.
+#   Step 3 – SummarizationAgent synthesizes a structured review.
+#
+# All parameters except 'topic' have sensible defaults.
+
+name: literature_review
+version: "1.0"
+description: >
+  Automated literature review: searches indexed papers, filters by
+  LLM-scored relevance, then synthesizes a structured academic review
+  with executive summary, themes, synthesis, gaps, and conclusion.
+
+parameters:
+  topic:
+    type: str
+    required: true
+    description: "Research topic to investigate (e.g. 'transformer memory mechanisms')"
+
+  max_papers:
+    type: int
+    required: false
+    default: 20
+    description: "Maximum papers to retrieve in the initial search"
+    min_value: 5
+    max_value: 50
+
+  top_n:
+    type: int
+    required: false
+    default: 10
+    description: "Number of top-scored papers passed to the synthesizer"
+    min_value: 3
+    max_value: 20
+
+  search_scope:
+    type: dict
+    required: false
+    default:
+      reference_papers: true
+      my_papers: true
+      sessions: false
+      web_cache: false
+      notes: false
+      user_uploads: false
+      news_articles: false
+      twistednews: false
+    description: "Which FAISS / keyword indices to include in the search"
+
+agents:
+  - role: search_agent
+    name: "Literature Search"
+  - role: filter_agent
+    name: "Relevance Filter"
+  - role: summarization_agent
+    name: "Synthesis"
+
+workflow:
+  pattern: sequential
+  steps:
+    - step: 1
+      agent: search_agent
+      action: search_literature
+      output: raw_results
+      # Inputs resolved from context: topic, max_papers, search_scope
+
+    - step: 2
+      agent: filter_agent
+      action: filter_by_relevance
+      output: filtered_results
+      # Inputs resolved from context: topic, raw_results, top_n
+
+    - step: 3
+      agent: summarization_agent
+      action: synthesize
+      output: final_report
+      # Inputs resolved from context: topic, filtered_results
+
+security:
+  max_execution_time: 600    # seconds – literature reviews can take several minutes
+  max_memory_mb: 512
+  allowed_tools:
+    - faiss_search
+    - keyword_search
+    - ollama_llm
+  file_access: none

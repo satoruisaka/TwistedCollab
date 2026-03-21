@@ -1,0 +1,75 @@
+# Literature Discovery Skill
+# Version 1.0
+#
+# Discovers new sources on a topic via web search, then uses an LLM to
+# rank, annotate, and format them into a curated source list.
+#
+# Step 1 – WebDiscoveryAgent: web search (optionally restricted to a site
+#           such as arxiv.org, scholar.google.com, pubmed.ncbi.nlm.nih.gov).
+# Step 2 – ExtractionAgent: LLM ranks results by relevance, writes a
+#           one-sentence annotation per source, returns top_n items.
+
+name: literature_discovery
+version: "1.0"
+description: >
+  Discovers new literature sources by running a targeted web search
+  (optionally restricted to a specific site like arxiv.org), then uses
+  an LLM to score relevance and annotate each result, producing a ranked
+  source list ready for review or indexing.
+
+parameters:
+  topic:
+    type: str
+    required: true
+    description: "Research topic to search for (e.g. 'attention mechanisms in transformers')"
+
+  site_filter:
+    type: str
+    required: false
+    default: ""
+    description: "Restrict search to a domain, e.g. 'arxiv.org', 'pubmed.ncbi.nlm.nih.gov', 'scholar.google.com'. Leave blank for open web."
+
+  num_results:
+    type: int
+    required: false
+    default: 20
+    description: "Number of web results to retrieve before filtering"
+    min_value: 5
+    max_value: 50
+
+  top_n:
+    type: int
+    required: false
+    default: 15
+    description: "Number of top-ranked sources to return after LLM filtering"
+    min_value: 3
+    max_value: 30
+
+agents:
+  - role: web_discovery_agent
+    name: "Web Discovery"
+  - role: extraction_agent
+    name: "Source Extraction"
+
+workflow:
+  pattern: sequential
+  steps:
+    - step: 1
+      agent: web_discovery_agent
+      action: discover_sources
+      output: raw_results
+      # Inputs from context: topic, num_results, site_filter
+
+    - step: 2
+      agent: extraction_agent
+      action: extract_sources
+      output: final_report
+      # Inputs from context: topic, raw_results, top_n
+
+security:
+  max_execution_time: 300
+  max_memory_mb: 256
+  allowed_tools:
+    - web_search
+    - ollama_llm
+  file_access: none

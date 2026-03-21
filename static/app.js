@@ -64,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkServiceStatus();
     loadSessions();
     initNotepad();
+    initCollab();
 
     // Welcome exchange toggle
     const welcomeHeader = document.querySelector('#welcome-exchange .exchange-header');
@@ -1135,5 +1136,601 @@ function formatFileSize(bytes) {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1048576) return `${(bytes/1024).toFixed(1)} KB`;
     return `${(bytes/1048576).toFixed(1)} MB`;
+}
+
+// ===========================================================================
+// COLLAB TAB — Agent Skill Runner
+// ===========================================================================
+
+// Persistent collab state survives tab switches
+const collabState = {
+    skills: [],               // loaded from /api/skills/list
+    selectedSkill: null,      // full skill definition object
+    running: false,           // single-run guard
+    jobs: [],                 // recent job summaries
+    lastResult: null,         // keeps report visible on tab switch
+};
+
+// ---------------------------------------------------------
+// Init: called from DOMContentLoaded
+// ---------------------------------------------------------
+function initCollab() {
+    document.getElementById('collab-run-btn').addEventListener('click', runCollabSkill);
+    document.getElementById('collab-history-refresh').addEventListener('click', loadCollabHistory);
+    loadCollabSkills();
+    loadCollabHistory();
+}
+
+// ---------------------------------------------------------
+// Load skills from server
+// ---------------------------------------------------------
+async function loadCollabSkills() {
+    const listEl = document.getElementById('collab-skill-list');
+    try {
+        const res = await fetch(`${API_BASE}/api/skills/list`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        collabState.skills = data.skills || [];
+        renderSkillList();
+    } catch (err) {
+        listEl.innerHTML = `<div class="collab-empty" style="color:var(--danger)">❌ ${err.message}</div>`;
+    }
+}
+
+function renderSkillList() {
+    const listEl = document.getElementById('collab-skill-list');
+    if (!collabState.skills.length) {
+        listEl.innerHTML = '<div class="collab-empty">No skills found.</div>';
+        return;
+    }
+    listEl.innerHTML = '';
+    collabState.skills.forEach(skill => {
+        const card = document.createElement('div');
+        card.className = 'collab-skill-card';
+        card.dataset.name = skill.name;
+        const steps = skill.workflow_pattern || 'sequential';
+        card.innerHTML = `
+            <div class="collab-skill-name">📋 ${skill.name.replace(/_/g, ' ')}</div>
+            <div class="collab-skill-desc">${skill.description}</div>
+            <div class="collab-skill-meta">v${skill.version} · ${steps} · ${(skill.agents||[]).length} agents</div>
+        `;
+        card.addEventListener('click', () => selectSkill(skill));
+        listEl.appendChild(card);
+    });
+    // Re-select previously selected skill if any
+    if (collabState.selectedSkill) {
+        selectSkill(collabState.selectedSkill, /*restoreOnly*/true);
+    }
+}
+
+// ---------------------------------------------------------
+// Select a skill → render parameter form
+// ---------------------------------------------------------
+function selectSkill(skill, restoreOnly = false) {
+    collabState.selectedSkill = skill;
+
+    // Highlight selected card
+    document.querySelectorAll('.collab-skill-card').forEach(c => {
+        c.classList.toggle('selected', c.dataset.name === skill.name);
+    });
+
+    // Build parameter form
+    const paramsSection = document.getElementById('collab-params-section');
+    const runSection    = document.getElementById('collab-run-section');
+    const formEl        = document.getElementById('collab-params-form');
+
+    formEl.innerHTML = '';
+    const params = skill.parameters || {};
+    Object.entries(params).forEach(([key, spec]) => {
+        const row = document.createElement('div');
+        row.className = 'collab-param-row';
+
+        const label = document.createElement('label');
+        label.className = 'collab-param-label';
+        label.htmlFor = `collab-param-${key}`;
+        label.innerHTML = `
+            ${key}${spec.required ? '<span class="collab-param-required">*</span>' : ''}
+        `;
+        row.appendChild(label);
+
+        const input = buildParamInput(key, spec);
+        row.appendChild(input);
+
+        if (spec.description) {
+            const hint = document.createElement('div');
+            hint.className = 'collab-param-hint';
+            hint.textContent = spec.description;
+            row.appendChild(hint);
+        }
+        formEl.appendChild(row);
+    });
+
+    paramsSection.style.display = Object.keys(params).length ? '' : 'none';
+    runSection.style.display = '';
+}
+
+function buildParamInput(key, spec) {
+    const id = `collab-param-${key}`;
+
+    // Dict type → render a checkbox group where each key is a toggle
+    if (spec.type === 'dict' && spec.default && typeof spec.default === 'object') {
+        const group = document.createElement('div');
+        group.className = 'collab-param-checkgroup';
+        group.id = id;
+        Object.entries(spec.default).forEach(([scopeKey, defaultVal]) => {
+            const cbId = `${id}-${scopeKey}`;
+            const label = document.createElement('label');
+            label.className = 'collab-param-check-label';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.id = cbId;
+            cb.dataset.scopeKey = scopeKey;
+            cb.checked = !!defaultVal;
+            label.appendChild(cb);
+            label.appendChild(document.createTextNode(scopeKey.replace(/_/g, ' ')));
+            group.appendChild(label);
+        });
+        return group;
+    }
+
+    if (spec.allowed_values && spec.allowed_values.length) {
+        const sel = document.createElement('select');
+        sel.className = 'collab-param-select';
+        sel.id = id;
+        spec.allowed_values.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v; opt.textContent = v;
+            sel.appendChild(opt);
+        });
+        if (spec.default !== null && spec.default !== undefined) sel.value = spec.default;
+        return sel;
+    }
+
+    const input = document.createElement('input');
+    input.className = 'collab-param-input';
+    input.id = id;
+
+    if (spec.type === 'int') {
+        input.type = 'number';
+        input.step = '1';
+        if (spec.min_value !== null && spec.min_value !== undefined) input.min = spec.min_value;
+        if (spec.max_value !== null && spec.max_value !== undefined) input.max = spec.max_value;
+    } else {
+        input.type = 'text';
+    }
+
+    if (spec.default !== null && spec.default !== undefined && spec.type !== 'dict') {
+        input.value = spec.default;
+    }
+    input.placeholder = spec.required ? `Required` : `Optional`;
+    return input;
+}
+
+// ---------------------------------------------------------
+// Collect param values from form
+// ---------------------------------------------------------
+function collectParams(skill) {
+    const params = {};
+    const spec = skill.parameters || {};
+    Object.entries(spec).forEach(([key, s]) => {
+        // dict type: read from checkbox group (no .value property)
+        if (s.type === 'dict') {
+            const group = document.getElementById(`collab-param-${key}`);
+            if (group) {
+                const result = {};
+                group.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    result[cb.dataset.scopeKey] = cb.checked;
+                });
+                params[key] = result;
+            } else if (s.default != null) {
+                params[key] = s.default;
+            }
+            return;
+        }
+        const el = document.getElementById(`collab-param-${key}`);
+        if (!el) return;
+        const val = el.value.trim();
+        if (s.type === 'int') {
+            params[key] = val !== '' ? parseInt(val, 10) : (s.default ?? 0);
+        } else {
+            if (val !== '') params[key] = val;
+        }
+    });
+    return params;
+}
+
+// ---------------------------------------------------------
+// Run skill via SSE stream
+// ---------------------------------------------------------
+async function runCollabSkill() {
+    if (collabState.running) return;
+    const skill = collabState.selectedSkill;
+    if (!skill) return;
+
+    const params = collectParams(skill);
+
+    // Validate required params
+    const missing = Object.entries(skill.parameters || {})
+        .filter(([k, s]) => s.required && (params[k] === undefined || params[k] === ''))
+        .map(([k]) => k);
+    if (missing.length) {
+        alert(`Missing required parameter(s): ${missing.join(', ')}`);
+        return;
+    }
+
+    collabState.running = true;
+
+    // UI: disable run button, show pulsing tab dot
+    const runBtn = document.getElementById('collab-run-btn');
+    runBtn.disabled = true;
+
+    const collabTabBtn = document.querySelector('.nav-tab[data-tab="collab"]');
+    if (collabTabBtn && !collabTabBtn.querySelector('.collab-running-dot')) {
+        const dot = document.createElement('span');
+        dot.className = 'collab-running-dot';
+        collabTabBtn.appendChild(dot);
+    }
+
+    // Show result panel; build step indicators
+    const steps = (skill.workflow?.steps || skill.agents || []);
+    showResultPanel(skill, steps);
+
+    // Add a placeholder job entry
+    const tempJob = { job_id: null, skill_name: skill.name, status: 'running', started_at: new Date().toISOString() };
+    collabState.jobs.unshift(tempJob);
+    renderJobList();
+
+    try {
+        const res = await fetch(`${API_BASE}/api/skills/run/stream`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ skill_name: skill.name, params, session_id: state.currentSessionId || null })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop();
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                try {
+                    const ev = JSON.parse(line.slice(6));
+                    handleCollabEvent(ev, tempJob, steps);
+                } catch (pe) {
+                    console.error('Collab SSE parse error:', pe);
+                }
+            }
+        }
+    } catch (err) {
+        showCollabError(err.message);
+        tempJob.status = 'failed';
+        renderJobList();
+    } finally {
+        collabState.running = false;
+        runBtn.disabled = false;
+        // Remove pulsing tab dot
+        document.querySelector('.nav-tab[data-tab="collab"] .collab-running-dot')?.remove();
+    }
+}
+
+// ---------------------------------------------------------
+// SSE event handler
+// ---------------------------------------------------------
+function handleCollabEvent(ev, job, stepDefs) {
+    if (ev.type === 'step_start') {
+        setStepState(ev.step, 'running', ev.agent);
+        showCollabStatus(`Step ${ev.step}/${ev.total}: ${ev.agent.replace(/_/g, ' ')} — ${ev.action.replace(/_/g, ' ')}…`);
+    } else if (ev.type === 'step_complete') {
+        setStepState(ev.step, 'done', ev.agent);
+    } else if (ev.type === 'done') {
+        hideCollabStatus();
+        job.status = 'completed';
+        job.result = ev.result;
+        collabState.lastResult = ev;
+        renderCollabResult(ev.result);
+        renderJobList();
+        loadCollabHistory(); // refresh history panel after new result saved
+    } else if (ev.type === 'error') {
+        showCollabError(ev.error || 'Unknown error');
+        job.status = 'failed';
+        renderJobList();
+    }
+}
+
+// ---------------------------------------------------------
+// UI helpers
+// ---------------------------------------------------------
+function showResultPanel(skill, steps) {
+    document.getElementById('collab-empty-state').style.display = 'none';
+    const panel = document.getElementById('collab-result-panel');
+    panel.style.display = 'flex';
+
+    document.getElementById('collab-result-title').textContent =
+        skill.name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    document.getElementById('collab-copy-btn').style.display = 'none';
+
+    // Build step indicators
+    const bar = document.getElementById('collab-progress-bar');
+    bar.innerHTML = '';
+    const stepList = Array.isArray(steps) && steps.length && steps[0].step
+        ? steps                     // workflow steps from YAML
+        : skill.agents || [];       // fallback: agent list
+
+    stepList.forEach((s, i) => {
+        const label = s.agent || s.role || `Step ${i+1}`;
+        const span = document.createElement('span');
+        span.className = 'collab-step';
+        span.id = `collab-step-${i+1}`;
+        span.innerHTML = `<span class="collab-step-icon">○</span><span>${label.replace(/_/g,' ')}</span>`;
+        bar.appendChild(span);
+        if (i < stepList.length - 1) {
+            const sep = document.createElement('span');
+            sep.className = 'collab-step-sep';
+            sep.textContent = '→';
+            bar.appendChild(sep);
+        }
+    });
+
+    // Hide all output areas
+    document.getElementById('collab-report').style.display = 'none';
+    document.getElementById('collab-sources').style.display = 'none';
+    document.getElementById('collab-error').style.display = 'none';
+}
+
+function setStepState(stepNum, state, agentRole) {
+    const el = document.getElementById(`collab-step-${stepNum}`);
+    if (!el) return;
+    el.className = `collab-step ${state}`;
+    const icon = el.querySelector('.collab-step-icon');
+    if (icon) {
+        if (state === 'running') icon.innerHTML = '<span class="collab-spinner"></span>';
+        else if (state === 'done') icon.textContent = '✓';
+        else if (state === 'error') icon.textContent = '✗';
+    }
+}
+
+function showCollabStatus(msg) {
+    const el = document.getElementById('collab-status-msg');
+    el.style.display = 'flex';
+    el.innerHTML = `<span class="collab-spinner"></span><span>${msg}</span>`;
+}
+function hideCollabStatus() {
+    document.getElementById('collab-status-msg').style.display = 'none';
+}
+
+function renderCollabResult(result) {
+    if (!result) return;
+
+    // Normalise result shape — different skills return different keys
+    // literature_review:  result.report  +  result.sources[{index, filename, relevance_score}]
+    // literature_discovery: result.sources[{rank, title, url, annotation, relevance_score}]
+    const reportText = result.report
+        || result.final_report?.report
+        || result.result?.report
+        || '';
+
+    const sources = result.sources
+        || result.final_report?.sources
+        || result.result?.sources
+        || [];
+
+    const reportEl = document.getElementById('collab-report');
+    const copyBtn  = document.getElementById('collab-copy-btn');
+
+    if (reportText) {
+        reportEl.innerHTML = typeof marked !== 'undefined'
+            ? marked.parse(reportText)
+            : reportText.replace(/\n/g, '<br>');
+        reportEl.style.display = '';
+        if (collabState.lastResult) collabState.lastResult._reportText = reportText;
+        copyBtn.style.display = '';
+        copyBtn.onclick = () => copyToClipboard(reportText, copyBtn);
+    }
+
+    if (sources.length) {
+        const srcEl = document.getElementById('collab-sources');
+        srcEl.innerHTML = `<div class="collab-sources-title">Sources (${sources.length})</div>`;
+
+        sources.forEach(s => {
+            const item = document.createElement('div');
+            item.className = 'collab-source-item';
+
+            // Discovery skill: has rank + url + annotation
+            if (s.url) {
+                const score = s.relevance_score != null ? `rel: ${Number(s.relevance_score).toFixed(1)}` : '';
+                const rankLabel = s.rank != null ? `[${s.rank}]` : '';
+                item.innerHTML = `
+                    <span class="collab-source-index">${rankLabel}</span>
+                    <span class="collab-source-name">
+                        <a href="${s.url}" target="_blank" rel="noopener" title="${s.url}">${s.title || s.url}</a>
+                        ${s.annotation ? `<div class="collab-source-annotation">${s.annotation}</div>` : ''}
+                    </span>
+                    <span class="collab-source-score">${score}</span>
+                `;
+            } else {
+                // Review skill: has index + filename + relevance_score
+                item.innerHTML = `
+                    <span class="collab-source-index">[${s.index ?? ''}]</span>
+                    <span class="collab-source-name" title="${s.filename || ''}">${s.filename || ''}</span>
+                    <span class="collab-source-score">rel: ${(s.relevance_score||0).toFixed(1)}</span>
+                `;
+            }
+            srcEl.appendChild(item);
+        });
+        srcEl.style.display = '';
+
+        // For discovery skill with no report, show copy button for the source list
+        if (!reportText) {
+            const sourceText = sources.map(s =>
+                `${s.rank != null ? s.rank + '. ' : ''}${s.title || s.url}\n${s.url || ''}\n${s.annotation || ''}`
+            ).join('\n\n');
+            copyBtn.style.display = '';
+            copyBtn.onclick = () => copyToClipboard(sourceText, copyBtn);
+        }
+    }
+}
+
+function showCollabError(msg) {
+    hideCollabStatus();
+    const el = document.getElementById('collab-error');
+    el.innerHTML = `❌ <strong>Skill failed:</strong> ${msg}`;
+    el.style.display = '';
+}
+
+function renderJobList() {
+    const listEl = document.getElementById('collab-job-list');
+    const recent = collabState.jobs.slice(0, 5);
+    if (!recent.length) {
+        listEl.innerHTML = '<div class="collab-empty">No jobs yet.</div>';
+        return;
+    }
+    listEl.innerHTML = '';
+    recent.forEach(job => {
+        const item = document.createElement('div');
+        item.className = 'collab-job-item';
+        item.title = job.skill_name;
+        const elapsed = job.started_at
+            ? formatRelativeDate(job.started_at)
+            : '';
+        item.innerHTML = `
+            <span class="collab-job-badge ${job.status}"></span>
+            <span class="collab-job-text">${job.skill_name.replace(/_/g,' ')}</span>
+            <span class="collab-job-time">${elapsed}</span>
+        `;
+        // Click completed job → restore its report
+        if (job.status === 'completed' && job.result) {
+            item.addEventListener('click', () => {
+                const skill = collabState.skills.find(s => s.name === job.skill_name);
+                if (skill) showResultPanel(skill, skill.agents || []);
+                renderCollabResult(job.result);
+            });
+        }
+        listEl.appendChild(item);
+    });
+}
+
+// ---------------------------------------------------------
+// Saved results history panel
+// ---------------------------------------------------------
+async function loadCollabHistory() {
+    const listEl = document.getElementById('collab-history-list');
+    try {
+        const res = await fetch(`${API_BASE}/api/skills/results`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderCollabHistory(data.results || []);
+    } catch (err) {
+        listEl.innerHTML = `<div class="collab-empty" style="color:var(--danger)">❌ ${err.message}</div>`;
+    }
+}
+
+function renderCollabHistory(results) {
+    const listEl = document.getElementById('collab-history-list');
+    if (!results.length) {
+        listEl.innerHTML = '<div class="collab-empty">No saved results yet.</div>';
+        return;
+    }
+    listEl.innerHTML = '';
+    results.forEach(r => {
+        const item = document.createElement('div');
+        item.className = 'collab-history-item';
+        item.dataset.filename = r.filename;
+
+        const skillLabel = (r.skill || 'skill').replace(/_/g, ' ');
+        const dateLabel = r.modified ? formatRelativeDate(r.modified) : '';
+        item.innerHTML = `
+            <div class="collab-history-skill">${skillLabel}</div>
+            <div class="collab-history-topic" title="${r.topic}">${r.topic || r.filename}</div>
+            <div class="collab-history-date">${dateLabel}</div>
+            <button class="collab-history-delete" title="Delete">✕</button>
+        `;
+
+        item.addEventListener('click', (e) => {
+            if (e.target.classList.contains('collab-history-delete')) return;
+            loadHistoryResult(r, item);
+        });
+
+        item.querySelector('.collab-history-delete').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (!confirm(`Delete "${r.topic || r.filename}"?`)) return;
+            try {
+                await fetch(`${API_BASE}/api/skills/results/${encodeURIComponent(r.filename)}`, { method: 'DELETE' });
+                item.remove();
+                if (!listEl.querySelector('.collab-history-item')) {
+                    listEl.innerHTML = '<div class="collab-empty">No saved results yet.</div>';
+                }
+            } catch (err) {
+                alert(`Delete failed: ${err.message}`);
+            }
+        });
+
+        listEl.appendChild(item);
+    });
+}
+
+async function loadHistoryResult(record, itemEl) {
+    // Mark active
+    document.querySelectorAll('.collab-history-item').forEach(el => el.classList.remove('active'));
+    itemEl.classList.add('active');
+
+    try {
+        const res = await fetch(`${API_BASE}/api/skills/results/${encodeURIComponent(record.filename)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        // Show result panel with the stored markdown
+        document.getElementById('collab-empty-state').style.display = 'none';
+        const panel = document.getElementById('collab-result-panel');
+        panel.style.display = 'flex';
+        document.getElementById('collab-progress-bar').innerHTML = '';
+        document.getElementById('collab-status-msg').style.display = 'none';
+        document.getElementById('collab-sources').style.display = 'none';
+        document.getElementById('collab-error').style.display = 'none';
+
+        const title = (record.skill || 'Result').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        document.getElementById('collab-result-title').textContent =
+            `${title}${record.topic ? ' — ' + record.topic : ''}`;
+
+        const reportEl = document.getElementById('collab-report');
+        reportEl.innerHTML = typeof marked !== 'undefined'
+            ? marked.parse(data.content)
+            : data.content.replace(/\n/g, '<br>');
+        reportEl.style.display = '';
+
+        const copyBtn = document.getElementById('collab-copy-btn');
+        copyBtn.style.display = '';
+        copyBtn.onclick = () => copyToClipboard(data.content, copyBtn);
+    } catch (err) {
+        showCollabError(`Could not load result: ${err.message}`);
+    }
+}
+
+function copyToClipboard(text, btn) {
+    const orig = btn.innerHTML;
+    try {
+        if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                btn.innerHTML = '✅ Copied!'; btn.classList.add('copied');
+                setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 2000);
+            });
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+            document.body.appendChild(ta); ta.select();
+            document.execCommand('copy'); document.body.removeChild(ta);
+            btn.innerHTML = '✅ Copied!'; btn.classList.add('copied');
+            setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 2000);
+        }
+    } catch { btn.innerHTML = '❌ Failed'; setTimeout(() => { btn.innerHTML = orig; }, 2000); }
 }
 

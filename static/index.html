@@ -264,12 +264,93 @@
         </div><!-- /#sessions-tab -->
 
         <!-- ============================================================
-             COLLAB TAB (placeholder)
+             COLLAB TAB — Agent Skill Runner
              ============================================================ -->
         <div class="tab-content" id="collab-tab">
-            <div class="collab-placeholder">
-                <h2>🤝 Collab</h2>
-                <p>Agentic workflow features coming soon.</p>
+            <div class="collab-layout">
+
+                <!-- Left: Skill Library + Parameters -->
+                <aside class="collab-sidebar">
+                    <div class="collab-sidebar-content">
+
+                        <!-- Skill Library -->
+                        <div class="sidebar-section">
+                            <h3>Skill Library</h3>
+                            <div id="collab-skill-list" class="collab-skill-list">
+                                <div class="collab-loading">Loading skills…</div>
+                            </div>
+                        </div>
+
+                        <!-- Dynamic Parameter Form -->
+                        <div class="sidebar-section" id="collab-params-section" style="display:none;">
+                            <h3>Parameters</h3>
+                            <div id="collab-params-form" class="collab-params-form"></div>
+                        </div>
+
+                        <!-- Run Button -->
+                        <div class="sidebar-section" id="collab-run-section" style="display:none;">
+                            <button class="btn-primary collab-run-btn" id="collab-run-btn">▶ Run Skill</button>
+                        </div>
+
+                        <!-- Recent Jobs -->
+                        <div class="sidebar-section">
+                            <h3>Recent Jobs</h3>
+                            <div id="collab-job-list" class="collab-job-list">
+                                <div class="collab-empty">No jobs yet.</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </aside>
+
+                <!-- Right: Progress + Report Output -->
+                <main class="collab-output">
+
+                    <!-- Empty state -->
+                    <div id="collab-empty-state" class="collab-empty-state">
+                        <div class="collab-empty-icon">🤝</div>
+                        <div class="collab-empty-title">Agent Skills</div>
+                        <div class="collab-empty-sub">Select a skill on the left and press Run.</div>
+                    </div>
+
+                    <!-- Active / results panel (hidden until first run) -->
+                    <div id="collab-result-panel" class="collab-result-panel" style="display:none;">
+
+                        <!-- Skill title + copy button -->
+                        <div class="collab-result-header">
+                            <span id="collab-result-title" class="collab-result-title"></span>
+                            <button class="copy-markdown-btn" id="collab-copy-btn" style="display:none;">📋 Copy Report</button>
+                        </div>
+
+                        <!-- Step progress -->
+                        <div class="collab-progress-bar" id="collab-progress-bar"></div>
+
+                        <!-- Status message while running -->
+                        <div id="collab-status-msg" class="collab-status-msg" style="display:none;"></div>
+
+                        <!-- Report (rendered markdown) -->
+                        <div id="collab-report" class="collab-report" style="display:none;"></div>
+
+                        <!-- Sources list -->
+                        <div id="collab-sources" class="collab-sources" style="display:none;"></div>
+
+                        <!-- Error display -->
+                        <div id="collab-error" class="collab-error" style="display:none;"></div>
+
+                    </div>
+                </main>
+
+                <!-- Right: Saved Results History -->
+                <aside class="collab-history-panel" id="collab-history-panel">
+                    <div class="collab-history-header">
+                        <span class="collab-history-title">Saved Results</span>
+                        <button class="collab-history-refresh" id="collab-history-refresh" title="Refresh">↺</button>
+                    </div>
+                    <div id="collab-history-list" class="collab-history-list">
+                        <div class="collab-empty">No saved results yet.</div>
+                    </div>
+                </aside>
+
             </div>
         </div><!-- /#collab-tab -->
 
