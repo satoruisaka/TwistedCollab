@@ -16,6 +16,12 @@ Therefore, the objective of TwistedCollab is to address these needs and constrai
 
 Unlike LLM-based communication automation apps such as **OpenClaw**, TwistedCollab is about accessing and acting on local data by exploiting Twisted series applications that fully exploit LLM capabilities.  
 
+---
+
+![TwistedCollab screenshot](TwistedCollab_screenshot.png)
+
+---
+
 ## Data Sources
 
 All data is indexed for keyword and semantic search
