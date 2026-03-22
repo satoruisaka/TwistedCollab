@@ -47,7 +47,12 @@ class KeywordIndexer:
         "twistednews":   config.SOURCE_TWISTEDNEWS_DIR,
         # Runtime artefacts
         "sessions":  config.SESSIONS_DIR,
-        "web_cache": config.WEB_CACHE_DIR
+        "web_cache": config.WEB_CACHE_DIR,
+        # Twisted* project outputs
+        "skills":  config.SOURCE_SKILLS_DIR,
+        "debates": config.SOURCE_DEBATES_DIR,
+        "pics":    config.SOURCE_PICS_DIR,
+        "dreams":  config.SOURCE_DREAMS_DIR,
     }
 
     def __init__(
@@ -199,7 +204,7 @@ class KeywordIndexer:
         self._log(f"Indexing {source_name} from {source_path}")
 
         files = [
-            p for p in (source_path.glob("*.*") if source_path.is_dir() else [source_path])
+            p for p in (source_path.rglob("*.*") if source_path.is_dir() else [source_path])
             if p.suffix.lower() in self.TEXT_EXTENSIONS
         ]
 

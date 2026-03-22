@@ -83,7 +83,11 @@ class FAISSIndexer:
         "notes":            config.SOURCE_NOTES_DIR,
         "user_uploads":     config.SOURCE_USER_UPLOADS_DIR,
         "news_articles":    config.SOURCE_NEWS_ARTICLES_DIR,
-        "twistednews":      config.SOURCE_TWISTEDNEWS_DIR
+        "twistednews":      config.SOURCE_TWISTEDNEWS_DIR,
+        "skills":           config.SOURCE_SKILLS_DIR,
+        "debates":          config.SOURCE_DEBATES_DIR,
+        "pics":             config.SOURCE_PICS_DIR,
+        "dreams":           config.SOURCE_DREAMS_DIR,
     }
 
     def __init__(

@@ -31,7 +31,11 @@ const state = {
             sessions: false,
             user_uploads: false,
             news_articles: false,
-            twistednews: false
+            twistednews: false,
+            skills: false,
+            debates: false,
+            pics: false,
+            dreams: false
         },
         useWebSearch: false,
         searchMode: 'semantic',
@@ -314,12 +318,11 @@ async function sendMessage(queryText) {
     // Determine if distortion is active (mode is not 'off')
     const useDistortion = state.settings.distortionMode !== 'off';
 
-    // Build search_scope for the server — maps new 9-key scope to the 4 BackendScope keys
-    // Additional scopes (notes, user_uploads etc.) will be ignored by server gracefully
+    // Build search_scope for the server — all FAISS/keyword scope keys (live_web excluded; it maps to use_web_search)
     const requestData = {
         session_id: state.currentSessionId || 'new',
         message: queryText,
-        use_rag: Object.values(state.settings.searchScope).some(Boolean),
+        use_rag: Object.entries(state.settings.searchScope).some(([k, v]) => k !== 'live_web' && v),
         use_web_search: state.settings.useWebSearch,
         use_distortion: useDistortion,
         use_ensemble_distortion: useDistortion && state.settings.useEnsemble,
@@ -328,7 +331,15 @@ async function sendMessage(queryText) {
             reference_papers: state.settings.searchScope.reference_papers,
             my_papers:         state.settings.searchScope.my_papers,
             sessions:          state.settings.searchScope.sessions,
-            web_cache:         state.settings.searchScope.web_cache
+            web_cache:         state.settings.searchScope.web_cache,
+            notes:             state.settings.searchScope.notes,
+            user_uploads:      state.settings.searchScope.user_uploads,
+            news_articles:     state.settings.searchScope.news_articles,
+            twistednews:       state.settings.searchScope.twistednews,
+            skills:            state.settings.searchScope.skills,
+            debates:           state.settings.searchScope.debates,
+            pics:              state.settings.searchScope.pics,
+            dreams:            state.settings.searchScope.dreams,
         },
         model: state.settings.model,
         temperature: state.settings.temperature,

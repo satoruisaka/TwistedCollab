@@ -31,9 +31,16 @@ SOURCE_NEWS_ARTICLES_DIR = DATA_DIR / "markdown" / "news_articles"
 SOURCE_TWISTEDNEWS_DIR = DATA_DIR / "markdown" / "twistednews"
 SOURCE_REFERENCE_DIR = DATA_DIR / "markdown" / "reference_papers"
 SOURCE_AUTHORED_DIR = DATA_DIR / "markdown" / "my_papers"
+SOURCE_SKILLS_DIR = DATA_DIR / "markdown" / "skills"
+
+# External output directories (from other Twisted* projects)
+# Override via environment variables if paths differ on your system
+SOURCE_DEBATES_DIR = Path(os.getenv("TWISTED_DEBATES_DIR", str(PROJECT_ROOT.parent / "TwistedDebate" / "outputs")))
+SOURCE_PICS_DIR = Path(os.getenv("TWISTED_PICS_DIR", str(PROJECT_ROOT.parent / "TwistedPic" / "outputs")))
+SOURCE_DREAMS_DIR = Path(os.getenv("TWISTED_DREAMS_DIR", str(PROJECT_ROOT.parent / "TwistedDream" / "outputs")))
 
 # Create internal directories
-for dir_path in [WEB_CACHE_DIR, SESSIONS_DIR, SOURCE_NOTES_DIR, SOURCE_USER_UPLOADS_DIR, SOURCE_NEWS_ARTICLES_DIR, SOURCE_TWISTEDNEWS_DIR, SOURCE_REFERENCE_DIR, SOURCE_AUTHORED_DIR]:
+for dir_path in [WEB_CACHE_DIR, SESSIONS_DIR, SOURCE_NOTES_DIR, SOURCE_USER_UPLOADS_DIR, SOURCE_NEWS_ARTICLES_DIR, SOURCE_TWISTEDNEWS_DIR, SOURCE_REFERENCE_DIR, SOURCE_AUTHORED_DIR, SOURCE_SKILLS_DIR]:
     dir_path.mkdir(parents=True, exist_ok=True)
 
 # === OLLAMA SETTINGS ===
@@ -131,6 +138,18 @@ if not SOURCE_REFERENCE_DIR.exists():
 if not SOURCE_AUTHORED_DIR.exists():
     print(f"⚠️  WARNING: Authored Papers directory not found: {SOURCE_AUTHORED_DIR}")
     print(f"   To fix: Create directory or set MRA_MY_PAPERS_DIR environment variable")
+
+if not SOURCE_DEBATES_DIR.exists():
+    print(f"⚠️  WARNING: TwistedDebate outputs directory not found: {SOURCE_DEBATES_DIR}")
+    print(f"   To fix: Run TwistedDebate to generate outputs or set TWISTED_DEBATES_DIR environment variable")
+
+if not SOURCE_PICS_DIR.exists():
+    print(f"⚠️  WARNING: TwistedPic outputs directory not found: {SOURCE_PICS_DIR}")
+    print(f"   To fix: Run TwistedPic to generate outputs or set TWISTED_PICS_DIR environment variable")
+
+if not SOURCE_DREAMS_DIR.exists():
+    print(f"⚠️  WARNING: TwistedDream outputs directory not found: {SOURCE_DREAMS_DIR}")
+    print(f"   To fix: Run TwistedDream to generate outputs or set TWISTED_DREAMS_DIR environment variable")
 
 # NOTE: New reference papers added via API go to reference_papers_delta.index
 # Delta index handles incremental additions without separate directory

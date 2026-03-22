@@ -49,6 +49,10 @@ parameters:
       user_uploads: false
       news_articles: false
       twistednews: false
+      skills: false
+      debates: false
+      pics: false
+      dreams: false
     description: "Which FAISS / keyword indices to include in the search"
 
 agents:

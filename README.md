@@ -1,67 +1,38 @@
-# TwistedCollab3
+# TwistedCollab
 
-> **Local-first AI research assistant** — semantic search, keyword search, RAG-powered chat, Markdown notes, rhetorical distortion via TwistedPair, and **agentic skill execution** with multi-step LLM workflows. Fully self-contained; no cloud dependencies.
+## Local-First (*No Cloud Dependencies*) Agentic Research Assistant
+
+Fully self-contained Web browser application to access, analyze, and act on data by ***collaborating*** with AI agents in multi-step agentic workflows, and special features from rhetorical ***TwistedPair*** distortion and data integration with ***TwistedDebate, TwistedDream, TwistedNews, and TwistedPic.*** Core functions include: RAG-powered chat, Markdown file edits and previews, live Web search, semantic and keyword search on local data sources, including personal documents, session history, notes, uploads, news articles, and various AI agent outputs.
 
 Created: February 2026 · Updated: March 2026
 
----
+## Target User and Objective
 
-## Table of Contents
+TwistedCollab is originally designed and built for my personal use to assist my daily scientific research activities, which mostly involve data, documents, and idea managament. Ideation and iteration are critical elements in research. I often revisit what I have read, thought, built, and written in the past, and ask myself questions on them from different perspectives at different times. Therefore, searching and reading data and documents alone is not sufficient. I need a tool that captures what I do everyday and allows me to access and act on them.
 
-1. [Overview](#overview)
-2. [Key Improvements Over MRA](#key-improvements-over-mra)
-3. [Architecture](#architecture)
-4. [Prerequisites](#prerequisites)
-5. [Installation](#installation)
-6. [Configuration](#configuration)
-7. [Starting the Server](#starting-the-server)
-8. [User Interface](#user-interface)
-9. [Search System](#search-system)
-10. [RAG Pipeline](#rag-pipeline)
-11. [TwistedPair Distortion](#twistedpair-distortion)
-12. [Web Search](#web-search)
-13. [Agentic Skill System](#agentic-skill-system)
-14. [Index Management](#index-management)
-15. [Session Management](#session-management)
-16. [API Reference](#api-reference)
-17. [Data Directory Layout](#data-directory-layout)
-18. [Module Reference](#module-reference)
-19. [Environment Variables](#environment-variables)
+Many tasks I regulary perform require multiple steps with advanced linguistic processes. LLMs are very useful for this purpose. Since my work involve large volume of texts, data, and programs, the total token counts are quite large. Relying on cloud AI services adds up cost. Since everything I do remains in my local workstation, dealing with cloud storage is not ideal for me.
 
----
+Therefore, the objective of TwistedCollab is to address these needs and constraints, serving as a personal agentic research assistant, providing a unified workbench to not only access but also to act on my data, documents, and ideas, and doing so completely locally without cloud dependencies.
 
-## Overview
+Unlike LLM-based communication automation apps such as **OpenClaw**, TwistedCollab is about accessing and acting on local data by exploiting Twisted series applications that fully exploit LLM capabilities.  
 
-TwistedCollab is a local-first AI research assistant built on FastAPI + Ollama. It provides a full-featured web UI for:
+## Data Sources
 
-- **RAG-augmented chat** — answers grounded in your own document collections
-- **Semantic search** — vector similarity via FAISS (`IndexFlatIP`, cosine similarity)
-- **Keyword search** — full-text search via SQLite FTS5 (Porter stemming)
-- **Live web search** — Brave API with DuckDuckGo fallback and automatic caching
-- **Rhetorical distortion** — TwistedPair integration for six modes of perspective reframing
-- **Markdown notes** — built-in editor with live preview, saved to server
-- **Session history** — every conversation auto-saved, searchable, and indexable
-- **Agentic skills** — multi-step LLM workflows executed by specialised agents, triggered from the Collab tab with live SSE progress and auto-saved Markdown results
+All data is indexed for keyword and semantic search
 
----
-
-## Key Improvements Over MRA
-
-| Feature | MRA | TwistedCollab |
-|---|---|---|
-| Index architecture | Dual-index (HNSW main + Flat delta) | Single-stage `IndexFlatIP` — simpler, faster, no merge overhead |
-| Search modes | Semantic only | **Semantic / Keyword / Both** (user-selectable, segmented UI) |
-| Data sources | 4 (reference papers, my papers, sessions, web cache) | **9** — adds Notes, User Uploads, News Articles, TwistedNews |
-| Keyword index | None | SQLite FTS5, incrementally updated, per-source |
-| UI | Functional | Tabbed layout, collapsible sidebar, dark/light theme, segmented controls |
-| Notes | None | Full Markdown editor with split-pane live preview, server save, download |
-| Distortion | Off by default | Per-session, 6 modes × 5 tones × gain 1–10, ensemble mode |
-| Streaming | No | **SSE token streaming** for all chat responses |
-| Auto-indexing | Manual | Sessions and web cache auto-indexed on save |
-| File upload | None | Upload PDF/TXT/CSV/MD into `user_uploads` source |
-| Collab | None | Placeholder for **upcoming agentic workflow** | **Full agentic skill runner** — multi-step workflows, SSE progress, saved results |
-
----
+- **Live Web** — via Brave and DuckDuckGo Web Search APIs
+- **Web Cache** — past Web search results
+- **References** — research papers I collected over the years
+- **My Papers** — my authored papers
+- **Uploads** — any documents I uploaded
+- **Sessions** — prompts to and respoonses from LLM agents
+- **Notes** — markdown files I creat and edit
+- **News Articles** — Global news articles automatically fetched daily by NewsAgent
+- **TwistedNews** — Custom commentaries created by TwistedNews
+- **Pics** — Metadata for images generated by twistedPic
+- **Dreams** — Stories generated by TwistedDream
+- **Debates** — Debate outputs generated by TwistedDebate
+- **Skills** — Outputs from multi-step LLM agentic workflows
 
 ## Architecture
 
@@ -93,8 +64,6 @@ External services (local):
   TwistedPair  localhost:8001    (text distortion)
 ```
 
----
-
 ## Prerequisites
 
 | Requirement | Notes |
@@ -102,7 +71,7 @@ External services (local):
 | Python 3.10+ | Tested on 3.10 |
 | CUDA GPU | Required for FAISS embedding (`BAAI/bge-large-en-v1.5`) |
 | [Ollama](https://ollama.com) | Running on `localhost:11434` |
-| TwistedPair V4 | Running on `localhost:8001` (optional — distortion only) |
+| TwistedPair V2 | Running on `localhost:8001` (optional — distortion only) |
 | Brave Search API key | Optional — falls back to DuckDuckGo |
 
 ---
@@ -122,8 +91,6 @@ Copy and fill in the environment file:
 cp .env.example .env
 # Set BRAVE_API_KEY, OLLAMA_URL, TWISTEDPAIR_URL if non-default
 ```
-
----
 
 ## Configuration
 
@@ -173,8 +140,8 @@ Open **http://localhost:8000** in a browser.
 The primary workspace. Three-column layout:
 
 **Left: Collapsible Sidebar**
-- **Data Source** — checkboxes to select which collections feed retrieval:
-  - Live Web, Web Cache, References, My Papers, Notes, Sessions, Uploads, News Articles, TwistedNews
+- **Search Scope** — compact 2-column checkbox grid to select which collections feed retrieval:
+  - Live Web, Web Cache, References, My Papers, Notes, Sessions, Uploads, News Articles, TwistedNews, Skills, Debates, Pics, Dreams
 - **Search Mode** — segmented button control (fits the 200 px sidebar):
   - `Semantic` — FAISS vector similarity (default)
   - `Keyword` — SQLite FTS5 full-text
@@ -216,7 +183,7 @@ The **Agentic Skill Runner**. Executes multi-step LLM workflows driven by YAML s
 - **Skill Library** — all registered skills loaded from `skills/*.yaml`; click a card to select
 - **Parameters** — dynamically rendered form for each skill's declared parameters
   - `str` / `int` → text or number input with min/max constraints
-  - `dict` (e.g. `search_scope`) → checkbox grid, one checkbox per key
+  - `dict` (e.g. `search_scope`) → compact 2-column checkbox grid, one checkbox per key (mirrors the Search Scope layout in the Search tab)
 - **Run Skill** — disabled while a job is running (single-run guard)
 - **Recent Jobs** — last 5 jobs with status badge; click a completed job to restore its output
 
@@ -260,7 +227,7 @@ Automated 3-step literature review over your indexed document collections.
 | `topic` | str | — | Research topic (required) |
 | `max_papers` | int | 20 | Papers retrieved in initial search (5–50) |
 | `top_n` | int | 10 | Top-scored papers passed to synthesizer (3–20) |
-| `search_scope` | dict | refs + my papers | Which FAISS/FTS5 indices to search |
+| `search_scope` | dict | refs + my papers | Which FAISS/FTS5 indices to search (reference_papers, my_papers, sessions, web_cache, notes, user_uploads, news_articles, twistednews, skills, debates, pics, dreams) |
 
 **Steps:** `search_agent` → `filter_agent` → `summarization_agent`
 
@@ -383,6 +350,7 @@ Implemented in `keyword_indexer.py` (`KeywordIndexer`).
 
 - SQLite FTS5 with Porter stemmer and unicode61 tokenizer
 - Per-source indexing matching the FAISS source set
+- **Recursive directory scan** (`rglob`) — indexes files in nested subdirectories (required for sources like Dreams whose outputs are stored one-per-subfolder)
 - Incremental updates via MD5 file-hash tracking
 - Returns highlighted snippets with `<mark>` tags (stripped before LLM context assembly)
 - Thread-safe via `threading.Lock`
@@ -530,7 +498,15 @@ Sessions are resumable from the Sessions tab. Closed sessions are auto-indexed s
     "reference_papers": true,
     "my_papers": false,
     "sessions": false,
-    "web_cache": false
+    "web_cache": false,
+    "notes": false,
+    "user_uploads": false,
+    "news_articles": false,
+    "twistednews": false,
+    "skills": false,
+    "debates": false,
+    "pics": false,
+    "dreams": false
   },
   "use_web_search": false,
   "model": "ministral-3:14b",
@@ -562,6 +538,11 @@ TwistedCollab/
 │   │   └── twistednews/        ← rhetorical news from TwistedNews
 │   ├── sessions/               ← chat session JSON + MD files
 │   └── web_cache/              ← cached web search results
+│
+│  External sources (outside TwistedCollab, configurable via env vars):
+├── ../TwistedDebate/outputs/   ← debate Markdown files  (SOURCE_DEBATES_DIR)
+├── ../TwistedPic/outputs/      ← TwistedPic metadata JSON files (SOURCE_PICS_DIR)
+└── ../TwistedDream/outputs/    ← storybook_<timestamp>.md per subfolder (SOURCE_DREAMS_DIR)
 ├── faiss_indices/
 │   ├── <source>.index          ← FAISS IndexFlatIP (one per source)
 │   ├── <source>.metadata       ← chunk metadata (pickle list)
@@ -619,6 +600,9 @@ TwistedCollab/
 | `BRAVE_API_KEY` | Brave Search API key |
 | `OLLAMA_KEEP_ALIVE` | GPU keep-alive duration (default: `3m`) |
 | `LOG_LEVEL` | Logging level (default: `INFO`) |
+| `TWISTED_DEBATES_DIR` | Path to TwistedDebate outputs (default: `../TwistedDebate/outputs`) |
+| `TWISTED_PICS_DIR` | Path to TwistedPic outputs (default: `../TwistedPic/outputs`) |
+| `TWISTED_DREAMS_DIR` | Path to TwistedDream outputs (default: `../TwistedDream/outputs`) |
 
 ---
 
@@ -629,4 +613,4 @@ MIT License
 ## Created and last updated
 
 Created: February 22, 2026  
-Last updated: March 21, 2026 — added agentic skill system (Collab tab, agents package, skills package)
+Last updated: March 22, 2026 — expanded Search Scope to 13 sources (Skills, Debates, Pics, Dreams); renamed sidebar section; compact 2-column scope grid; recursive keyword indexer (`rglob`); external source directories for TwistedDebate, TwistedPic, TwistedDream outputs configurable via env vars; TwistedDream now emits `storybook_<timestamp>.md` companion files for automatic indexing

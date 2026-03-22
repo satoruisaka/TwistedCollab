@@ -341,6 +341,22 @@ body {
     accent-color: var(--accent-primary);
     flex-shrink: 0;
 }
+
+/* Compact 2-column grid for Search Scope section (like Collab skill's search_scope) */
+.scope-checkgroup {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 6px;
+    padding: 2px 0;
+}
+.scope-checkgroup label {
+    font-size: 10px;
+    white-space: nowrap;
+}
+.scope-checkgroup input[type="checkbox"] {
+    width: 11px;
+    height: 11px;
+}
 .checkbox-row { margin-top: 4px; }
 .checkbox-row label {
     display: flex; align-items: center; gap: 6px;

@@ -54,6 +54,10 @@ class SearchScope:
     user_uploads: bool = False
     news_articles: bool = False
     twistednews: bool = False
+    skills: bool = False
+    debates: bool = False
+    pics: bool = False
+    dreams: bool = False
     
     def get_active_indices(self) -> List[str]:
         """Return list of index names where flag is True."""
