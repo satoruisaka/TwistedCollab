@@ -4,7 +4,7 @@ Created: October 2025 · Updated: March 24, 2026
 
 - Fully self-contained Web browser application, serving as an agentic research assistant with ***no cloud dependencies***, collaborating with local LLMs in agentic workflows to access, analyze, and act on data.
 
-- Core functions: RAG-powered chat, Markdown file edits and previews, live Web search, semantic and keyword search on local documents, session history, notes, uploads, news articles, and various AI agent outputs.
+- Core functions: RAG-powered chat, Multi-task agent workflows, Markdown file edits and previews, live Web search, semantic and keyword search on local documents, session history, notes, uploads, news articles, and various AI agent outputs.
 
 - Special features: Uniquely integrated with ***Twisted*** services: [***TwistedPair***]( https://github.com/satoruisaka/TwistedPair), [***TwistedDebate***](https://github.com/satoruisaka/TwistedDebate), [***TwistedDream***](https://github.com/satoruisaka/TwistedDream), [***TwistedNews***](https://github.com/satoruisaka/TwistedNews), and [***TwistedPic***](https://github.com/satoruisaka/TwistedPic).
 
@@ -30,7 +30,6 @@ I then launch ***TwistedCollab*** and begin my work:
   - ***TwistedDebate*** - agentic debate for deep analyses (one-on-one debate, cross-examination, panel discussion, round-robin comments)
   - *Excalidraw* - drawing tool
 
-
 If I need a new workflow, I open VS Code + Roo Code or Copilot Chat and build new agents (python) and skills (yaml) and restart TwistedCollab server.
 
 ## Local models I use
@@ -49,7 +48,43 @@ Note: These 14b-30b models work well for my workstation with RTX5090.
 
 ![TwistedCollab UI](TwistedCollab_screenshot.png)
 
-### **Data Sources (All Indexed for Search)**
+---
+
+## Why ***Twisted***?
+
+All my LLM apps use a unique feature of [***TwistedPair***]( https://github.com/satoruisaka/TwistedPair), a REST API application that controls the behavior of large language models (LLMs). Like a guitar pedal with three knobs (MODE, TONE, GAIN), TwistedPair harnesses the inherent linguistic characteristics and statistical sampling processes of open‑weight models as a dynamic linguistic filter for user prompts.
+
+The MODE and TONE knobs modulate the user prompt with pre-defined instructions, enabling varied perspectives and expressions. The GAIN knob collectively modulates the stochastic sampling process of LLM outputs to control coherence, diversity, and creativity.
+
+With **6 modes × 5 tones × 10 gain levels = 300 different "pedal settings"** with multiple **open weight models**, TwistedPair offers extensive signal distortion possibilities.
+
+### Mode (6 rhetorical distortion types)
+
+- **INVERT_ER**: Like a nay-sayer, negate user claims, provide counterarguments
+- **SO_WHAT_ER**: Like an astute investor, ask "So what?", question significance and consequences
+- **ECHO_ER**: Like an amplifier with reverb, exaggerate signals, highlight strengths
+- **WHAT_IF_ER**: Like an imaginative child or dreamer, ask "What if?", explore alternative scenarios
+- **CUCUMB_ER**: Like a cool-headed analytical observer, provide logical, evidence-oriented commentary
+- **ARCHIV_ER**: Like a librarian, bring historical context and prior works
+
+### Tone (5 verbal expression styles)
+
+- **NEUTRAL**: Clear, concise, balanced expression
+- **TECHNICAL**: Precise, analytical, scientific language
+- **PRIMAL**: Short, punchy, aggressive words
+- **POETIC**: Lyrical, metaphorical, mystical expression
+- **SATIRICAL**: Witty, ironic, humorous critique
+
+### Gain (10 distortion Levels)
+
+- **1~3**: Deterministic, factual
+- **4~6**: Balanced, natural
+- **7~8**: Creative variation
+- **9~10**: Wild, surprising
+
+---
+
+### **Data Sources for TwistedCollab (All Indexed for Search)**
 
 | Source               | Description                                                                 |
 |----------------------|-----------------------------------------------------------------------------|
@@ -67,7 +102,7 @@ Note: These 14b-30b models work well for my workstation with RTX5090.
 | **Debates**          | Outputs from TwistedDebate.                                                 |
 | **Skills**           | Results of multi-step LLM workflows.                                        |
 
-## Architecture
+## TwistedCollab Architecture
 
 ```
 Browser (index.html + app.js)
