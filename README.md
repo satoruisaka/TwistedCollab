@@ -722,20 +722,3 @@ TwistedCollab/
 ## License
 
 MIT License
-
-## Created and last updated
-
-Created: February 22, 2026  
-Last updated: March 24, 2026
-
-### Changelog
-
-**March 24, 2026**
-
-- **Utility Tab — Smart Service Launcher**: Launch buttons now probe service health before opening. If a service is down, the server spawns its startup script automatically. A live status dot (green/amber/red) shows running state on each card. The browser tab is opened immediately in the click handler to avoid popup-blocker issues, then navigated to the service URL once it is confirmed running. A 2-minute polling timeout with inline error messages handles startup failures.
-- **Utility Tab — File Manager**: New file browser section at the bottom of the Utility tab. Supports breadcrumb folder navigation, checkbox-select for individual files, Select All / Deselect controls, and a "Download Selected" button that packages files as a `.zip`.
-- **New API endpoints**: `GET /api/utility/status/{service}`, `POST /api/utility/launch/{service}`, `GET /api/files/list`, `GET /api/files/download`, `POST /api/files/download-zip`.
-- **`SERVICE_SCRIPTS` in `config.py`**: Whitelist mapping service names to their startup script paths. Service name is validated against this dict before any script is executed (no user-controlled shell input).
-- **Graceful shutdown**: On TwistedCollab shutdown, all utility services started from the Utility tab are sent SIGTERM (5-second grace period) then SIGKILL, leaving no background processes running. Subprocess pipes use `DEVNULL` to avoid asyncio transport warnings on loop close.
-- **New Collab skill — `document_commentary`**: Generates structured commentary (Overview, Key Points, Substantive Commentary, Connections & Implications, Open Questions) on any indexed document or pasted text. Supports `source_type` dropdown, auto-populated `source_file` picker, optional `source_text` textarea, focus angle, and tone selector.
-- **New agents**: `source_fetch_agent` (reads a file from any indexed source or accepts pasted text), `commentary_agent` (LLM structured commentary generation).
