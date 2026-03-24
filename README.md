@@ -30,17 +30,20 @@ I then launch ***TwistedCollab*** and begin my work:
   - ***TwistedDebate*** - agentic debate for deep analyses (one-on-one debate, cross-examination, panel discussion, round-robin comments)
   - *Excalidraw* - drawing tool
 
+
+If I need a new workflow, I open VS Code + Roo Code or Copilot Chat and build new agents (python) and skills (yaml) and restart TwistedCollab server.
+
 ## Local models I use
 
 - ministral-3:14b - default model for quick response
 - gemma3:27b - instruction following tasks, brainstorming
 - qwen3-coder:30b - programming
-- qwen3.5:27b and 35b - brainstorming and architecting
-- deepseek-r1:8b - for agentic debates
+- qwen3.5:27b and 35b - brainstorming, architecting
+- deepseek-r1:8b - agentic debates
 - nemotron-cascade-2:30b - agentic debates
-- nemotron-3-nano:30b - agentic debates
+- nemotron-3-nano:30b - long context reasoning
 
-Note: My workstation has RTX5090 with 32GB so these 14b-30b models work well.
+Note: These 14b-30b models work well for my workstation with RTX5090.
 
 ### **Screenshots**
 
@@ -53,7 +56,7 @@ Note: My workstation has RTX5090 with 32GB so these 14b-30b models work well.
 | **Live Web**         | Brave/DuckDuckGo search (cached for reuse).                                 |
 | **Web Cache**        | Past search results (automatically indexed).                                |
 | **References**       | Research papers (PDFs converted to Markdown).                               |
-| **My Papers**        | Your authored work (PDFs → Markdown).                                       |
+| **My Papers**        | My authored work (PDFs → Markdown).                                       |
 | **Uploads**          | PDFs/TXT/CSV/MD files uploaded via UI.                                      |
 | **Sessions**         | Chat histories (searchable after session close).                            |
 | **Notes**            | Markdown files (auto-saved, indexed).                                      |
@@ -92,6 +95,10 @@ Browser (index.html + app.js)
 External services (local):
   Ollama       localhost:11434   (LLM inference)
   TwistedPair  localhost:8001    (text distortion)
+  TwistedPic  localhost:5000    (image gen)
+  TwistedDream  localhost:5001    (story gen)
+  TwistedDebate  localhost:8004    (agentic debates)
+  Excalidraw  localhost:3001    (drawing)
 ```
 
 ## Prerequisites
