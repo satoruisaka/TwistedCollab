@@ -30,7 +30,7 @@ I then launch ***TwistedCollab*** and begin my work:
   - ***TwistedDebate*** - agentic debate for deep analyses (one-on-one debate, cross-examination, panel discussion, round-robin comments)
   - *Excalidraw* - drawing tool
 
-## Local models I regularly use
+## Local models I use
 
 - ministral-3:14b - default model for quick response
 - gemma3:27b - instruction following tasks, brainstorming
