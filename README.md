@@ -14,6 +14,10 @@ TwistedCollab is specifically designed for my personal use to assist my daily sc
 
 *Reason why I exploit local LLMs and agentic workflows* - Ideation and iteration are critical elements in my daily work. I often revisit what I have read, thought, built, and written in the past, and ask myself questions on them from different perspectives at different times. Many tasks I regularly perform require multiple steps with advanced linguistic processes. LLMs are useful for this type of work. Since my work involves large volume of texts, data, and programs, the total token counts are quite large. Also because everything I do remains in my local workstation, dealing with cloud storage is not ideal. Local LLMs are my solution.
 
+### **Screenshots**
+
+![TwistedCollab UI](TwistedCollab_screenshot.png)
+
 ## How I use ***Twisted*** tools everyday
 
 At 6AM every morning, I receive and read two emails from my ***NewsAgent*** and ***TwistedNews***, which give me an overview of what's happening in the world with custom commentaries.
@@ -43,10 +47,6 @@ If I need a new workflow, I open VS Code + Roo Code or Copilot Chat and build ne
 - nemotron-3-nano:30b - long context reasoning
 
 Note: These 14b-30b models work well for my workstation with RTX5090.
-
-### **Screenshots**
-
-![TwistedCollab UI](TwistedCollab_screenshot.png)
 
 ---
 
