@@ -34,7 +34,7 @@ I then launch ***TwistedCollab*** and begin my work:
 
 - ministral-3:14b - default model for quick response
 - gemma3:27b - instruction following tasks, brainstorming
-- qwne3-coder:30b - programming
+- qwen3-coder:30b - programming
 - qwen3.5:27b and 35b - brainstorming and architecting
 - deepseek-r1:8b - for agentic debates
 - nemotron-cascade-2:30b - agentic debates
