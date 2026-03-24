@@ -11,9 +11,9 @@ Created: October 2025 · Updated: March 24, 2026
 
 ## Target User and Objective
 
-TwistedCollab is specifically designed for my personal use to assist my daily scientific research actibities. The objective is to establish a comprehensive, unified workbench to manage my data, documents, and ideas, completely locally without cloud dependencies.
+TwistedCollab is specifically designed for my personal use to assist my daily scientific research activities. The objective is to establish a comprehensive, unified workbench to manage my data, documents, and ideas, completely locally without cloud dependencies.
 
-*Reason why I exploit local LLMs and agentic workflows* - Ideation and iteration are critical elements in my daily work. I often revisit what I have read, thought, built, and written in the past, and ask myself questions on them from different perspectives at different times. Many tasks I regulary perform require multiple steps with advanced linguistic processes. LLMs are useful for this type of work. Since my work involve large volume of texts, data, and programs, the total token counts are quite large. Also because everything I do remains in my local workstation, dealing with cloud storage is not ideal. Local LLMs are my solution.
+*Reason why I exploit local LLMs and agentic workflows* - Ideation and iteration are critical elements in my daily work. I often revisit what I have read, thought, built, and written in the past, and ask myself questions on them from different perspectives at different times. Many tasks I regularly perform require multiple steps with advanced linguistic processes. LLMs are useful for this type of work. Since my work involves large volume of texts, data, and programs, the total token counts are quite large. Also because everything I do remains in my local workstation, dealing with cloud storage is not ideal. Local LLMs are my solution.
 
 ## How I use ***Twisted*** tools everyday
 
@@ -24,10 +24,10 @@ I then launch ***TwistedCollab*** and begin my work:
 - From **Notes** Tab, I take new notes or revisit my old notes.
 - From **Sessions** Tab, I revisit previous sessions to resume idea brainstorming.
 - From **Collab** Tab, I launch agentic workflows (e.g. literature search, literature review, document commentary).
-- From **Utiity** Tab, I launch various Twisted services:
+- From **Utility** Tab, I launch various Twisted services:
   - ***TwistedPic*** - custom image generation with TwistedPair distortion
-  - ***TwistedDream*** - custom story generation with illustraions and TwistedPair distortion
-  - ***TwistedDebate*** - agentic debate for deep analyses (one-one debate, cross examination, panel discussion, round robin comments)
+  - ***TwistedDream*** - custom story generation with illustrations and TwistedPair distortion
+  - ***TwistedDebate*** - agentic debate for deep analyses (one-on-one debate, cross-examination, panel discussion, round-robin comments)
   - *Excalidraw* - drawing tool
 
 ## Local models I regularly use
