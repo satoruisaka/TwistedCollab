@@ -1,18 +1,46 @@
 # TwistedCollab
 
-*A **local-first**, no-cloud AI agentic research assistant* - Fully self-contained Web browser application to access, analyze, and act on data. ***Collaborate*** with AI agents in multi-step agentic workflows, and special features from rhetorical [***TwistedPair***]( https://github.com/satoruisaka/TwistedPair) distortion and data integration with [***TwistedDebate***](https://github.com/satoruisaka/TwistedDebate), [***TwistedDream***](https://github.com/satoruisaka/TwistedDream), [***TwistedNews***](https://github.com/satoruisaka/TwistedNews), and [***TwistedPic***](https://github.com/satoruisaka/TwistedPic). Core functions include: RAG-powered chat, Markdown file edits and previews, live Web search, semantic and keyword search on local data sources, including personal documents, session history, notes, uploads, news articles, and various AI agent outputs.
+Created: October 2025 · Updated: March 24, 2026
 
-Created: February 2026 · Updated: March 2026
+- Fully self-contained Web browser application, serving as an agentic research assistant with ***no cloud dependencies***, collaborating with local LLMs in agentic workflows to access, analyze, and act on data.
+
+- Core functions: RAG-powered chat, Markdown file edits and previews, live Web search, semantic and keyword search on local documents, session history, notes, uploads, news articles, and various AI agent outputs.
+
+- Special features: Uniquely integrated with ***Twisted*** services: [***TwistedPair***]( https://github.com/satoruisaka/TwistedPair), [***TwistedDebate***](https://github.com/satoruisaka/TwistedDebate), [***TwistedDream***](https://github.com/satoruisaka/TwistedDream), [***TwistedNews***](https://github.com/satoruisaka/TwistedNews), and [***TwistedPic***](https://github.com/satoruisaka/TwistedPic). 
+
 
 ## Target User and Objective
 
-TwistedCollab is originally designed and built for my personal use to assist my daily scientific research activities, which mostly involve data, documents, and idea managament. Ideation and iteration are critical elements in research. I often revisit what I have read, thought, built, and written in the past, and ask myself questions on them from different perspectives at different times. Therefore, searching and reading data and documents alone is not sufficient. I need a tool that captures what I do everyday and allows me to access and act on them.
+TwistedCollab is specifically designed for my personal use to assist my daily scientific research actibities. The objective is to establish a comprehensive, unified workbench to manage my data, documents, and ideas, completely locally without cloud dependencies.
 
-Many tasks I regulary perform require multiple steps with advanced linguistic processes. LLMs are very useful for this purpose. Since my work involve large volume of texts, data, and programs, the total token counts are quite large. Relying on cloud AI services adds up cost. Since everything I do remains in my local workstation, dealing with cloud storage is not ideal for me.
+*Reason why I exploit local LLMs and agentic workflows* - Ideation and iteration are critical elements in my daily work. I often revisit what I have read, thought, built, and written in the past, and ask myself questions on them from different perspectives at different times. Many tasks I regulary perform require multiple steps with advanced linguistic processes. LLMs are useful for this type of work. Since my work involve large volume of texts, data, and programs, the total token counts are quite large. Also because everything I do remains in my local workstation, dealing with cloud storage is not ideal. Local LLMs are my solution.
 
-Therefore, the objective of TwistedCollab is to address these needs and constraints, serving as a personal agentic research assistant, providing a unified workbench to not only access but also to act on my data, documents, and ideas, and doing so completely locally without cloud dependencies.
+## How I use ***Twisted*** tools everyday
 
-Unlike LLM-based communication automation apps such as **OpenClaw**, TwistedCollab is about accessing and acting on local data by exploiting Twisted series applications that fully exploit LLM capabilities.  
+At 6AM every morning, I receive and read two emails from my ***NewsAgent*** and ***TwistedNews***, which give me an overview of what's happening in the world with custom commentaries.
+
+I then launch ***TwistedCollab*** and begin my work:
+- From **Search** Tab, I brainstorm ideas with LLMs, do live Web search, and document search.
+- From **Notes** Tab, I take new notes or revisit my old notes.
+- From **Sessions** Tab, I revisit previous sessions to resume idea brainstorming.
+- From **Collab** Tab, I launch agentic workflows (e.g. literature search, literature review, document commentary).
+- From **Utiity** Tab, I launch various Twisted services:
+  - ***TwistedPic*** - custom image generation with TwistedPair distortion
+  - ***TwistedDream*** - custom story generation with illustraions and TwistedPair distortion
+  - ***TwistedDebate*** - agentic debate for deep analyses (one-one debate, cross examination, panel discussion, round robin comments)
+  - *Excalidraw* - drawing tool
+
+## Local models I regularly use
+
+- ministral-3:14b - default model for quick response
+- gemma3:27b - instruction following tasks, brainstorming
+- qwne3-coder:30b - programming
+- qwen3.5:27b and 35b - brainstorming and architecting
+- deepseek-r1:8b - for agentic debates
+- nemotron-cascade-2:30b - agentic debates
+- nemotron-3-nano:30b - agentic debates
+
+Note: My workstation has RTX5090 with 32GB so these 14b-30b models work well.
 
 ### **Screenshots**
 
@@ -111,6 +139,11 @@ All settings live in `config.py` and can be overridden via environment variables
 | `UNLOAD_EMBEDDER_AFTER_USE` | `True` | Free GPU after embedding queries |
 | `CHILD_CHUNK_SIZE` | `500` | Tokens per chunk for FAISS indexing |
 | `CHUNK_OVERLAP` | `100` | Overlap between consecutive chunks |
+| `UTILITY_HOST` | `http://192.168.1.92` | Base host for all utility service URLs |
+| `TWISTEDPIC_URL` | `{UTILITY_HOST}:5000` | TwistedPic service URL |
+| `TWISTEDDREAM_URL` | `{UTILITY_HOST}:5001` | TwistedDream service URL |
+| `TWISTEDDEBATE_URL` | `{UTILITY_HOST}:8004` | TwistedDebate service URL |
+| `EXCALIDRAW_URL` | `{UTILITY_HOST}:3001` | Excalidraw service URL |
 
 ---
 
@@ -176,6 +209,26 @@ Full Markdown editor:
 - Live filter box to search session titles and previews
 - Sessions stored as JSON + Markdown in `data/sessions/`
 
+### Utility Tab
+
+Launcher and file manager for companion services in the Twisted ecosystem.
+
+**Service Launcher (top)** — Cards are rendered dynamically from `/api/utility-urls`. Each card shows:
+- A **live status dot** (green = running, amber pulse = starting/checking, red = stopped) probed at tab-open time via `GET /api/utility/status/{service}`
+- A **Launch** button that:
+  1. Opens a blank browser tab immediately (avoids popup-blocker)
+  2. Calls `POST /api/utility/launch/{service}` — if the service is already running the tab navigates to its URL instantly
+  3. If the service is down, the server spawns the corresponding startup script (e.g. `startTwistedPic.sh`) as a background process
+  4. The button changes to **Starting…** and polls `GET /api/utility/status/{service}` every 3 seconds; once the service responds the tab is navigated and the button resets
+  5. Startup errors (e.g. Ollama not running) or a 2-minute timeout surface as an inline error message on the card
+- If a service URL is `null` (not yet configured), the card shows **Coming Soon** instead
+
+**File Manager (bottom)** — Browse, navigate, and download files from the `data/` directory:
+- Breadcrumb navigation into nested folders
+- Checkbox-select individual files; **Download Selected** packages them as a `.zip`
+- Select All / Deselect controls
+- File size and modification date columns
+
 ### Collab Tab
 
 The **Agentic Skill Runner**. Executes multi-step LLM workflows driven by YAML skill definitions.
@@ -184,7 +237,10 @@ The **Agentic Skill Runner**. Executes multi-step LLM workflows driven by YAML s
 - **Skill Library** — all registered skills loaded from `skills/*.yaml`; click a card to select
 - **Parameters** — dynamically rendered form for each skill's declared parameters
   - `str` / `int` → text or number input with min/max constraints
+  - `str` with `allowed_values` → dropdown select
+  - `text` → multi-line textarea (for pasting content)
   - `dict` (e.g. `search_scope`) → compact 2-column checkbox grid, one checkbox per key (mirrors the Search Scope layout in the Search tab)
+  - Parameters with `linked_to` → file picker whose list auto-populates when its linked source-type dropdown changes
 - **Run Skill** — disabled while a job is running (single-run guard)
 - **Recent Jobs** — last 5 jobs with status badge; click a completed job to restore its output
 
@@ -236,6 +292,23 @@ Automated 3-step literature review over your indexed document collections.
 
 ---
 
+#### `document_commentary`
+Generates structured commentary on any indexed document or directly on pasted text.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `source_type` | str (dropdown) | `notes` | Where to read the content from: `text`, `notes`, `user_uploads`, `skills`, `news_articles`, `twistednews`, `reference_papers`, `my_papers`, `sessions` |
+| `source_file` | str (file picker) | — | File to comment on — list auto-populates when `source_type` changes. Leave empty when `source_type = text` |
+| `source_text` | text (textarea) | — | Paste text directly (only used when `source_type = text`) |
+| `commentary_focus` | str | — | Specific angle to focus the commentary on (optional) |
+| `tone` | str (dropdown) | `analytical` | Commentary tone: `analytical`, `critical`, `supportive`, `neutral` |
+
+**Steps:** `source_fetch_agent` → `commentary_agent`
+
+**Output:** Structured Markdown commentary with Overview, Key Points, Substantive Commentary, Connections & Implications, and Open Questions.
+
+---
+
 #### `literature_discovery`
 Discovers new sources via live web search, then ranks and annotates them with an LLM.
 
@@ -261,6 +334,8 @@ Discovers new sources via live web search, then ranks and annotates them with an
 | `summarization_agent` | `agents/summarization_agent.py` | `synthesize` | Ollama LLM — structured 5-section review |
 | `web_discovery_agent` | `agents/web_discovery_agent.py` | `discover_sources` | `POST /api/web-search` (Brave/DDG) |
 | `extraction_agent` | `agents/extraction_agent.py` | `extract_sources` | Ollama LLM — ranks + annotates results |
+| `source_fetch_agent` | `agents/source_fetch_agent.py` | `fetch_source` | Reads a file from any indexed source or accepts pasted text |
+| `commentary_agent` | `agents/commentary_agent.py` | `generate_commentary` | Ollama LLM — structured document commentary |
 
 ### Adding a New Skill
 
@@ -477,6 +552,12 @@ Sessions are resumable from the Sessions tab. Closed sessions are auto-indexed s
 | GET | `/api/notes/{filename}` | Load a note |
 | PUT | `/api/notes/{filename}` | Save a note |
 | GET | `/api/health` | Health — Ollama, TwistedPair, embedder, GPU |
+| GET | `/api/utility-urls` | Return configured URLs for all utility services |
+| GET | `/api/utility/status/{service}` | Probe whether a utility service is reachable (`running` \| `stopped` \| `starting` \| `error`) |
+| POST | `/api/utility/launch/{service}` | Check service health; if down, spawn its startup script and return `starting` status |
+| GET | `/api/files/list` | List files/folders under `data/` (breadcrumb navigation) |
+| GET | `/api/files/download` | Download a single file from `data/` |
+| POST | `/api/files/download-zip` | Package selected files as a `.zip` download |
 | POST | `/api/skills/run/stream` | Run a skill with SSE progress stream |
 | POST | `/api/skills/run` | Submit skill as async job (returns job_id) |
 | GET | `/api/skills/status/{job_id}` | Poll job status and result |
@@ -585,10 +666,13 @@ TwistedCollab/
 | `agents/summarization_agent.py` | LLM literature review synthesis agent |
 | `agents/web_discovery_agent.py` | Web search agent with optional site: filter |
 | `agents/extraction_agent.py` | LLM source ranking and annotation agent |
+| `agents/source_fetch_agent.py` | Reads a file from any indexed source or accepts pasted text |
+| `agents/commentary_agent.py` | LLM structured document commentary agent |
 | `skills/skill_schema.py` | Pydantic models for YAML skill definitions |
 | `skills/skill_registry.py` | Lazy YAML loader and cache for skill definitions |
 | `skills/literature_review.yaml` | 3-step literature review skill definition |
 | `skills/literature_discovery.yaml` | 2-step web discovery + extraction skill definition |
+| `skills/document_commentary.yaml` | 2-step document commentary skill definition |
 
 ---
 
@@ -604,6 +688,11 @@ TwistedCollab/
 | `TWISTED_DEBATES_DIR` | Path to TwistedDebate outputs (default: `../TwistedDebate/outputs`) |
 | `TWISTED_PICS_DIR` | Path to TwistedPic outputs (default: `../TwistedPic/outputs`) |
 | `TWISTED_DREAMS_DIR` | Path to TwistedDream outputs (default: `../TwistedDream/outputs`) |
+| `UTILITY_HOST` | Base host for companion service URLs (default: `http://192.168.1.92`) |
+| `TWISTEDPIC_URL` | Override TwistedPic URL (default: `{UTILITY_HOST}:5000`) |
+| `TWISTEDDREAM_URL` | Override TwistedDream URL (default: `{UTILITY_HOST}:5001`) |
+| `TWISTEDDEBATE_URL` | Override TwistedDebate URL (default: `{UTILITY_HOST}:8004`) |
+| `EXCALIDRAW_URL` | Override Excalidraw URL (default: `{UTILITY_HOST}:3001`) |
 
 ---
 
@@ -614,4 +703,15 @@ MIT License
 ## Created and last updated
 
 Created: February 22, 2026  
-Last updated: March 22, 2026
+Last updated: March 24, 2026
+
+### Changelog
+
+**March 24, 2026**
+- **Utility Tab — Smart Service Launcher**: Launch buttons now probe service health before opening. If a service is down, the server spawns its startup script automatically. A live status dot (green/amber/red) shows running state on each card. The browser tab is opened immediately in the click handler to avoid popup-blocker issues, then navigated to the service URL once it is confirmed running. A 2-minute polling timeout with inline error messages handles startup failures.
+- **Utility Tab — File Manager**: New file browser section at the bottom of the Utility tab. Supports breadcrumb folder navigation, checkbox-select for individual files, Select All / Deselect controls, and a "Download Selected" button that packages files as a `.zip`.
+- **New API endpoints**: `GET /api/utility/status/{service}`, `POST /api/utility/launch/{service}`, `GET /api/files/list`, `GET /api/files/download`, `POST /api/files/download-zip`.
+- **`SERVICE_SCRIPTS` in `config.py`**: Whitelist mapping service names to their startup script paths. Service name is validated against this dict before any script is executed (no user-controlled shell input).
+- **Graceful shutdown**: On TwistedCollab shutdown, all utility services started from the Utility tab are sent SIGTERM (5-second grace period) then SIGKILL, leaving no background processes running. Subprocess pipes use `DEVNULL` to avoid asyncio transport warnings on loop close.
+- **New Collab skill — `document_commentary`**: Generates structured commentary (Overview, Key Points, Substantive Commentary, Connections & Implications, Open Questions) on any indexed document or pasted text. Supports `source_type` dropdown, auto-populated `source_file` picker, optional `source_text` textarea, focus angle, and tone selector.
+- **New agents**: `source_fetch_agent` (reads a file from any indexed source or accepts pasted text), `commentary_agent` (LLM structured commentary generation).
