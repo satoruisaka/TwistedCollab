@@ -6,8 +6,7 @@ Created: October 2025 · Updated: March 24, 2026
 
 - Core functions: RAG-powered chat, Markdown file edits and previews, live Web search, semantic and keyword search on local documents, session history, notes, uploads, news articles, and various AI agent outputs.
 
-- Special features: Uniquely integrated with ***Twisted*** services: [***TwistedPair***]( https://github.com/satoruisaka/TwistedPair), [***TwistedDebate***](https://github.com/satoruisaka/TwistedDebate), [***TwistedDream***](https://github.com/satoruisaka/TwistedDream), [***TwistedNews***](https://github.com/satoruisaka/TwistedNews), and [***TwistedPic***](https://github.com/satoruisaka/TwistedPic). 
-
+- Special features: Uniquely integrated with ***Twisted*** services: [***TwistedPair***]( https://github.com/satoruisaka/TwistedPair), [***TwistedDebate***](https://github.com/satoruisaka/TwistedDebate), [***TwistedDream***](https://github.com/satoruisaka/TwistedDream), [***TwistedNews***](https://github.com/satoruisaka/TwistedNews), and [***TwistedPic***](https://github.com/satoruisaka/TwistedPic).
 
 ## Target User and Objective
 
@@ -20,6 +19,7 @@ TwistedCollab is specifically designed for my personal use to assist my daily sc
 At 6AM every morning, I receive and read two emails from my ***NewsAgent*** and ***TwistedNews***, which give me an overview of what's happening in the world with custom commentaries.
 
 I then launch ***TwistedCollab*** and begin my work:
+
 - From **Search** Tab, I brainstorm ideas with LLMs, do live Web search, and document search.
 - From **Notes** Tab, I take new notes or revisit my old notes.
 - From **Sessions** Tab, I revisit previous sessions to resume idea brainstorming.
@@ -47,6 +47,7 @@ Note: My workstation has RTX5090 with 32GB so these 14b-30b models work well.
 ![TwistedCollab UI](TwistedCollab_screenshot.png)
 
 ### **Data Sources (All Indexed for Search)**
+
 | Source               | Description                                                                 |
 |----------------------|-----------------------------------------------------------------------------|
 | **Live Web**         | Brave/DuckDuckGo search (cached for reuse).                                 |
@@ -126,7 +127,7 @@ cp .env.example .env
 All settings live in `config.py` and can be overridden via environment variables or `.env`.
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama server URL |
 | `TWISTEDPAIR_URL` | `http://localhost:8001` | TwistedPair server URL |
 | `BRAVE_API_KEY` | *(from .env)* | Brave Search API key |
@@ -173,7 +174,8 @@ Open **http://localhost:8000** in a browser.
 
 The primary workspace. Three-column layout:
 
-**Left: Collapsible Sidebar**
+#### Left: Collapsible Sidebar
+
 - **Search Scope** — compact 2-column checkbox grid to select which collections feed retrieval:
   - Live Web, Web Cache, References, My Papers, Notes, Sessions, Uploads, News Articles, TwistedNews, Skills, Debates, Pics, Dreams
 - **Search Mode** — segmented button control (fits the 200 px sidebar):
@@ -185,17 +187,20 @@ The primary workspace. Three-column layout:
 - **LLM Settings** *(collapsible)* — model, temperature, top-p, top-k, max tokens, context window, retrieval top-k
 - **Distortion** *(inside LLM Settings)* — Mode, Tone, Gain slider, Ensemble mode, Conversation context toggle
 
-**Center: Chat**
+#### Center: Chat
+
 - Query textarea — `Send` (Ctrl+Enter), `Clear`, `New Chat`
 - Token-streaming responses via Server-Sent Events
 - Each exchange collapsible; shows question, streamed answer, retrieved source citations
 
-**Right: Quick Notes**
+#### Right: Quick Notes
+
 - Mini scratchpad always visible alongside chat for jotting during research
 
 ### Notes Tab
 
 Full Markdown editor:
+
 - **Three view modes**: Edit / Split (side-by-side preview) / Preview — toolbar or `Ctrl+E`
 - **File operations**: New, Open (server-side file browser), Save (`Ctrl+S`), Download (`Ctrl+Shift+S`), Close
 - **Auto-save** every 30 seconds when unsaved changes are present
@@ -214,6 +219,7 @@ Full Markdown editor:
 Launcher and file manager for companion services in the Twisted ecosystem.
 
 **Service Launcher (top)** — Cards are rendered dynamically from `/api/utility-urls`. Each card shows:
+
 - A **live status dot** (green = running, amber pulse = starting/checking, red = stopped) probed at tab-open time via `GET /api/utility/status/{service}`
 - A **Launch** button that:
   1. Opens a blank browser tab immediately (avoids popup-blocker)
@@ -224,6 +230,7 @@ Launcher and file manager for companion services in the Twisted ecosystem.
 - If a service URL is `null` (not yet configured), the card shows **Coming Soon** instead
 
 **File Manager (bottom)** — Browse, navigate, and download files from the `data/` directory:
+
 - Breadcrumb navigation into nested folders
 - Checkbox-select individual files; **Download Selected** packages them as a `.zip`
 - Select All / Deselect controls
@@ -234,6 +241,7 @@ Launcher and file manager for companion services in the Twisted ecosystem.
 The **Agentic Skill Runner**. Executes multi-step LLM workflows driven by YAML skill definitions.
 
 **Left sidebar:**
+
 - **Skill Library** — all registered skills loaded from `skills/*.yaml`; click a card to select
 - **Parameters** — dynamically rendered form for each skill's declared parameters
   - `str` / `int` → text or number input with min/max constraints
@@ -245,6 +253,7 @@ The **Agentic Skill Runner**. Executes multi-step LLM workflows driven by YAML s
 - **Recent Jobs** — last 5 jobs with status badge; click a completed job to restore its output
 
 **Main panel:**
+
 - Step-by-step progress bar with spinner → checkmark transitions (SSE-driven)
 - Live status message showing current agent and action
 - Rendered Markdown report with **Copy Report** button
@@ -252,6 +261,7 @@ The **Agentic Skill Runner**. Executes multi-step LLM workflows driven by YAML s
 - Output persists when switching away and back to the tab
 
 **Right sidebar:**
+
 - **Saved Results** — all previously generated skill outputs, newest first
 - Click any item to reload its Markdown into the main panel
 - Hover-reveal ✕ delete button with confirmation
@@ -268,7 +278,7 @@ The skill system lets you define and run multi-step LLM workflows entirely throu
 ### Concepts
 
 | Concept | Description |
-|---|---|
+| --- | --- |
 | **Skill** | A named workflow declared in a YAML file under `skills/`. Defines parameters, agent roles, and step order. |
 | **Agent** | A Python class that implements one specific action (e.g. web search, LLM scoring). Stateless; communicates only via HTTP. |
 | **Orchestrator** | Executes steps sequentially, passing each step's output into the next step's inputs via a shared context dict. |
@@ -277,10 +287,11 @@ The skill system lets you define and run multi-step LLM workflows entirely throu
 ### Built-in Skills
 
 #### `literature_review`
+
 Automated 3-step literature review over your indexed document collections.
 
 | Parameter | Type | Default | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `topic` | str | — | Research topic (required) |
 | `max_papers` | int | 20 | Papers retrieved in initial search (5–50) |
 | `top_n` | int | 10 | Top-scored papers passed to synthesizer (3–20) |
@@ -293,10 +304,11 @@ Automated 3-step literature review over your indexed document collections.
 ---
 
 #### `document_commentary`
+
 Generates structured commentary on any indexed document or directly on pasted text.
 
 | Parameter | Type | Default | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `source_type` | str (dropdown) | `notes` | Where to read the content from: `text`, `notes`, `user_uploads`, `skills`, `news_articles`, `twistednews`, `reference_papers`, `my_papers`, `sessions` |
 | `source_file` | str (file picker) | — | File to comment on — list auto-populates when `source_type` changes. Leave empty when `source_type = text` |
 | `source_text` | text (textarea) | — | Paste text directly (only used when `source_type = text`) |
@@ -310,10 +322,11 @@ Generates structured commentary on any indexed document or directly on pasted te
 ---
 
 #### `literature_discovery`
+
 Discovers new sources via live web search, then ranks and annotates them with an LLM.
 
 | Parameter | Type | Default | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `topic` | str | — | Research topic (required) |
 | `site_filter` | str | *(open web)* | Restrict to a domain, e.g. `arxiv.org`, `pubmed.ncbi.nlm.nih.gov` |
 | `num_results` | int | 20 | Web results to retrieve (5–50) |
@@ -328,7 +341,7 @@ Discovers new sources via live web search, then ranks and annotates them with an
 ### Built-in Agents
 
 | Role | File | Action | Uses |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `search_agent` | `agents/search_agent.py` | `search_literature` | `POST /api/search` (FAISS + FTS5) |
 | `filter_agent` | `agents/filter_agent.py` | `filter_by_relevance` | Ollama LLM — scores 0–10 |
 | `summarization_agent` | `agents/summarization_agent.py` | `synthesize` | Ollama LLM — structured 5-section review |
@@ -342,6 +355,7 @@ Discovers new sources via live web search, then ranks and annotates them with an
 Three steps, no server restart required:
 
 **1. Create an agent** (if a new action is needed):
+
 ```python
 # agents/my_agent.py
 from agents.base_agent import BaseAgent
@@ -356,12 +370,14 @@ class MyAgent(BaseAgent):
 ```
 
 **2. Register it** in `agents/registry.py` → `register_all_agents()`:
+
 ```python
 from agents.my_agent import MyAgent
 AgentRegistry.register(MyAgent)
 ```
 
 **3. Create a YAML skill definition** in `skills/my_skill.yaml`:
+
 ```yaml
 name: my_skill
 version: "1.0"
@@ -386,6 +402,7 @@ security:
 ```
 
 Then hot-reload without restarting the server:
+
 ```bash
 curl -X POST http://localhost:8000/api/skills/reload
 ```
@@ -393,7 +410,7 @@ curl -X POST http://localhost:8000/api/skills/reload
 ### Skill YAML Parameter Types
 
 | `type` | UI element | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `str` | Text input | Set `required: true` to enforce |
 | `int` | Number input | Respects `min_value` / `max_value` |
 | `str` with `allowed_values` | Dropdown select | List valid options |
@@ -402,12 +419,11 @@ curl -X POST http://localhost:8000/api/skills/reload
 ### Saved Results
 
 Every completed skill run is automatically saved to `data/markdown/skills/` as:
+
 ```
 <skill_name>_<topic>_<YYYYMMDD_HHMMSS>.md
 ```
 The file contains the full report, source list, and a parseable `<!-- meta ... -->` comment used by the history panel.
-
-
 
 ### Semantic Search (FAISS)
 
@@ -436,7 +452,7 @@ Implemented in `keyword_indexer.py` (`KeywordIndexer`).
 The segmented button group in the sidebar controls retrieval for both chat RAG and direct `/api/search` calls:
 
 | Mode | Behaviour |
-|---|---|
+| --- | --- |
 | `Semantic` | FAISS cosine similarity only (default) |
 | `Keyword` | SQLite FTS5 only |
 | `Both` | Semantic results first, keyword results appended |
@@ -513,7 +529,7 @@ python MRA_v3_4_verify_index.py          # Verify index integrity
 ### Auto-Indexing (config.py)
 
 | Flag | Default | Effect |
-|---|---|---|
+| --- | --- | --- |
 | `AUTO_INDEX_SESSIONS` | `True` | Index session when closed |
 | `AUTO_INDEX_WEB_CACHE` | `True` | Index web result after caching |
 | `AUTO_INDEX_PAPERS` | `False` | Papers require explicit rebuild |
@@ -537,7 +553,7 @@ Sessions are resumable from the Sessions tab. Closed sessions are auto-indexed s
 ## API Reference
 
 | Method | Endpoint | Description |
-|---|---|---|
+| --- | --- | --- |
 | POST | `/api/chat/message/stream` | Streaming SSE chat with RAG |
 | POST | `/api/chat/end-session` | Close and save session |
 | GET | `/api/sessions` | List all sessions |
@@ -642,7 +658,7 @@ TwistedCollab/
 ## Module Reference
 
 | File | Role |
-|---|---|
+| --- | --- |
 | `server.py` | FastAPI app, all REST endpoints, request/response models |
 | `chat_manager.py` | Session lifecycle, message history, prompt construction |
 | `retrieval_manager.py` | Unified interface to FAISS + keyword search |
@@ -679,7 +695,7 @@ TwistedCollab/
 ## Environment Variables
 
 | Variable | Description |
-|---|---|
+| --- | --- |
 | `OLLAMA_URL` | Ollama server (default: `http://localhost:11434`) |
 | `TWISTEDPAIR_URL` | TwistedPair server (default: `http://localhost:8001`) |
 | `BRAVE_API_KEY` | Brave Search API key |
@@ -708,6 +724,7 @@ Last updated: March 24, 2026
 ### Changelog
 
 **March 24, 2026**
+
 - **Utility Tab — Smart Service Launcher**: Launch buttons now probe service health before opening. If a service is down, the server spawns its startup script automatically. A live status dot (green/amber/red) shows running state on each card. The browser tab is opened immediately in the click handler to avoid popup-blocker issues, then navigated to the service URL once it is confirmed running. A 2-minute polling timeout with inline error messages handles startup failures.
 - **Utility Tab — File Manager**: New file browser section at the bottom of the Utility tab. Supports breadcrumb folder navigation, checkbox-select for individual files, Select All / Deselect controls, and a "Download Selected" button that packages files as a `.zip`.
 - **New API endpoints**: `GET /api/utility/status/{service}`, `POST /api/utility/launch/{service}`, `GET /api/files/list`, `GET /api/files/download`, `POST /api/files/download-zip`.
