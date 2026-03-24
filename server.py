@@ -34,7 +34,7 @@ from retrieval_manager import RetrievalManager, SearchScope
 from web_search import WebSearchClient
 from ollama_client import OllamaClient
 from twistedpair_client import TwistedPairClient, DistortionMode, DistortionTone
-from config import NUM_CTX, DEFAULT_MODEL, MAX_OUTPUT_TOKENS, MAX_TEMPERATURE, MAX_TOP_P, MAX_TOP_K
+from config import NUM_CTX, DEFAULT_MODEL, MAX_OUTPUT_TOKENS, MAX_TEMPERATURE, MAX_TOP_P, MAX_TOP_K, UTILITY_URLS
 from agents.runner import SkillRunner, get_runner, JobStatus
 from skills.skill_registry import SkillRegistry
 
@@ -788,6 +788,15 @@ async def update_keyword_index(request: IndexUpdateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/utility-urls")
+async def get_utility_urls():
+    """
+    Return the configured URLs for Utility tab launcher services.
+    A None value means the service has no web URL yet (placeholder).
+    """
+    return UTILITY_URLS
+
+
 @app.get("/api/health", response_model=HealthResponse)
 async def health_check():
     """
@@ -1263,6 +1272,171 @@ async def read_news_article(filename: str):
 
 
 # ============================================================================
+# Markdown File List Endpoint  (used by Collab skill parameter form)
+# ============================================================================
+
+_MARKDOWN_LIST_DIRS = {
+    "notes":            ("markdown", "notes"),
+    "user_uploads":     ("markdown", "user_uploads"),
+    "skills":           ("markdown", "skills"),
+    "news_articles":    ("markdown", "news_articles"),
+    "twistednews":      ("markdown", "twistednews"),
+    "reference_papers": ("markdown", "reference_papers"),
+    "my_papers":        ("markdown", "my_papers"),
+    "sessions":         None,   # uses SESSIONS_DIR directly
+}
+
+
+@app.get("/api/markdown/list")
+async def list_markdown_files(source_dir: str = "notes"):
+    """
+    Return filenames in a TwistedCollab data directory.
+    Used by the Collab skill parameter form (linked_to file select).
+
+    Query param: source_dir — one of:
+      notes, user_uploads, skills, news_articles, twistednews,
+      reference_papers, my_papers, sessions
+    """
+    if source_dir not in _MARKDOWN_LIST_DIRS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown dir '{source_dir}'. Valid: {list(_MARKDOWN_LIST_DIRS)}"
+        )
+    try:
+        from config import DATA_DIR, SESSIONS_DIR
+
+        if source_dir == "sessions":
+            target = SESSIONS_DIR
+            pattern = "*.json"
+        else:
+            sub = _MARKDOWN_LIST_DIRS[source_dir]
+            target = DATA_DIR / sub[0] / sub[1]
+            pattern = "*.md"
+
+        if not target.exists():
+            return JSONResponse({"files": [], "count": 0, "dir": source_dir})
+
+        files = sorted(
+            [p.name for p in target.glob(pattern) if p.is_file()],
+            reverse=(source_dir == "sessions"),   # newest-first for sessions
+        )
+        return JSONResponse({"files": files, "count": len(files), "dir": source_dir})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"list_markdown_files error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# File Manager Endpoints
+# ============================================================================
+
+@app.get("/api/files/list")
+async def file_manager_list(path: str = ""):
+    """
+    List files and subdirectories under DATA_DIR.
+    Query param: path — relative path under data/ (empty = root of data/)
+    """
+    from config import DATA_DIR
+    data_root = DATA_DIR.resolve()
+    target = (DATA_DIR / path).resolve() if path else data_root
+
+    # Security: prevent path traversal
+    try:
+        target.relative_to(data_root)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="Directory not found")
+    if not target.is_dir():
+        raise HTTPException(status_code=400, detail="Not a directory")
+
+    entries = []
+    for item in sorted(target.iterdir(), key=lambda p: (p.is_file(), p.name.lower())):
+        rel = str(item.relative_to(DATA_DIR)).replace("\\", "/")
+        stat = item.stat()
+        entries.append({
+            "name": item.name,
+            "path": rel,
+            "type": "file" if item.is_file() else "dir",
+            "size": stat.st_size if item.is_file() else None,
+            "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+        })
+
+    # Build breadcrumb segments
+    parts = Path(path).parts if path else []
+    breadcrumb = [{"name": "data", "path": ""}]
+    for i, part in enumerate(parts):
+        breadcrumb.append({"name": part, "path": "/".join(parts[: i + 1])})
+
+    return JSONResponse({"entries": entries, "path": path, "breadcrumb": breadcrumb})
+
+
+@app.get("/api/files/download")
+async def file_manager_download(path: str):
+    """
+    Download a single file from DATA_DIR.
+    Query param: path — relative path under data/
+    """
+    from config import DATA_DIR
+    data_root = DATA_DIR.resolve()
+    target = (DATA_DIR / path).resolve()
+
+    try:
+        target.relative_to(data_root)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(
+        str(target),
+        filename=target.name,
+        media_type="application/octet-stream",
+    )
+
+
+class ZipDownloadRequest(BaseModel):
+    paths: List[str] = Field(..., min_length=1, description="Relative paths under data/")
+
+
+@app.post("/api/files/download-zip")
+async def file_manager_download_zip(request: ZipDownloadRequest):
+    """
+    Download multiple files as a single ZIP archive.
+    Request body: {"paths": ["markdown/notes/foo.md", ...]}
+    """
+    import io
+    import zipfile as _zipfile
+    from config import DATA_DIR
+    data_root = DATA_DIR.resolve()
+
+    buf = io.BytesIO()
+    with _zipfile.ZipFile(buf, mode="w", compression=_zipfile.ZIP_DEFLATED) as zf:
+        for rel_path in request.paths:
+            target = (DATA_DIR / rel_path).resolve()
+            try:
+                target.relative_to(data_root)
+            except ValueError:
+                raise HTTPException(status_code=403, detail=f"Access denied: {rel_path}")
+            if not target.is_file():
+                raise HTTPException(status_code=404, detail=f"File not found: {rel_path}")
+            zf.write(target, arcname=rel_path)
+
+    buf.seek(0)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return StreamingResponse(
+        iter([buf.read()]),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=twistedcollab_files_{ts}.zip"},
+    )
+
+
+# ============================================================================
 # Skill System Endpoints
 # ============================================================================
 
@@ -1448,6 +1622,10 @@ async def list_skills():
                         "required": v.required,
                         "default": v.default,
                         "description": v.description,
+                        "min_value": v.min_value,
+                        "max_value": v.max_value,
+                        "allowed_values": v.allowed_values,
+                        "linked_to": v.linked_to,
                     }
                     for k, v in s.parameters.items()
                 },

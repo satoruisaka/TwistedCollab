@@ -45,9 +45,13 @@ def register_all_agents() -> None:
     from agents.summarization_agent import SummarizationAgent
     from agents.web_discovery_agent import WebDiscoveryAgent
     from agents.extraction_agent import ExtractionAgent
+    from agents.source_fetch_agent import SourceFetchAgent
+    from agents.commentary_agent import CommentaryAgent
 
     AgentRegistry.register(SearchAgent)
     AgentRegistry.register(FilterAgent)
     AgentRegistry.register(SummarizationAgent)
     AgentRegistry.register(WebDiscoveryAgent)
     AgentRegistry.register(ExtractionAgent)
+    AgentRegistry.register(SourceFetchAgent)
+    AgentRegistry.register(CommentaryAgent)

@@ -24,6 +24,7 @@
                     <button class="nav-tab" data-tab="notes">Notes</button>
                     <button class="nav-tab" data-tab="sessions">Sessions</button>
                     <button class="nav-tab" data-tab="collab">Collab</button>
+                    <button class="nav-tab" data-tab="utility">Utility</button>
                 </nav>
             </div>
 
@@ -362,6 +363,53 @@
 
             </div>
         </div><!-- /#collab-tab -->
+
+        <!-- ============================================================
+             UTILITY TAB
+             ============================================================ -->
+        <div class="tab-content" id="utility-tab">
+            <div class="utility-container">
+                <h2 class="utility-heading">Utility Launcher</h2>
+                <p class="utility-subheading">Open a service in a new browser tab.</p>
+                <div class="utility-grid" id="utility-grid">
+                    <!-- Cards are injected by app.js after fetching /api/utility-urls -->
+                    <div class="utility-loading">Loading services…</div>
+                </div>
+
+                <!-- File Manager -->
+                <div class="fm-section">
+                    <h2 class="utility-heading">Data File Manager</h2>
+                    <p class="utility-subheading">Browse server-side data files and download them to your local machine.</p>
+                    <div class="fm-toolbar">
+                        <nav class="fm-breadcrumb" id="fm-breadcrumb">
+                            <span class="fm-bc-item fm-bc-active" data-path="">data</span>
+                        </nav>
+                        <div class="fm-toolbar-actions">
+                            <button class="fm-btn-secondary" id="fm-select-all">Select All</button>
+                            <button class="fm-btn-secondary" id="fm-deselect-all">Deselect</button>
+                            <button class="fm-btn-primary" id="fm-download-zip" disabled>⬇ Download Selected</button>
+                        </div>
+                    </div>
+                    <div class="fm-table-wrap">
+                        <table class="fm-table">
+                            <thead>
+                                <tr>
+                                    <th class="fm-col-check"><input type="checkbox" id="fm-check-all" title="Toggle all"></th>
+                                    <th class="fm-col-name">Name</th>
+                                    <th class="fm-col-size">Size</th>
+                                    <th class="fm-col-date">Modified</th>
+                                    <th class="fm-col-action"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="fm-tbody">
+                                <tr><td colspan="5" class="fm-loading">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="fm-status" id="fm-status"></div>
+                </div>
+            </div>
+        </div><!-- /#utility-tab -->
 
         <!-- ============================================================
              HELP MODAL

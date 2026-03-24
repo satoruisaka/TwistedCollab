@@ -88,6 +88,16 @@ PRESENCE_PENALTY = 0.0
 # === SERVER SETTINGS ===
 SERVER_URL = os.getenv("TWISTEDCOLLAB_SERVER_URL", "http://localhost:8000")
 
+# === UTILITY LAUNCHER URLs ===
+# Override via environment variables if service ports/hosts differ
+UTILITY_HOST = os.getenv("UTILITY_HOST", "http://192.168.1.92")
+UTILITY_URLS = {
+    "twistedpic":   os.getenv("TWISTEDPIC_URL",   f"{UTILITY_HOST}:5001"),
+    "twisteddream": os.getenv("TWISTEDDREAM_URL",  f"{UTILITY_HOST}:5000"),
+    "twisteddebate":os.getenv("TWISTEDDEBATE_URL", f"{UTILITY_HOST}:8004"),
+    "excalidraw":   os.getenv("EXCALIDRAW_URL",    f"{UTILITY_HOST}:3001"),
+}
+
 # === TWISTEDPAIR V2 INTEGRATION ===
 TWISTEDPAIR_URL = os.getenv("TWISTEDPAIR_URL", "http://localhost:8001")
 TWISTEDPAIR_DISTORT_ENDPOINT = f"{TWISTEDPAIR_URL}/distort-manual"

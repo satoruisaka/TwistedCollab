@@ -42,6 +42,7 @@ class ParameterSpec(BaseModel):
     min_value: Optional[float] = None
     max_value: Optional[float] = None
     allowed_values: Optional[List[str]] = None
+    linked_to: Optional[str] = None   # name of another param whose value drives a file list
 
 
 class AgentRole(BaseModel):

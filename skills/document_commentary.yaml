@@ -1,0 +1,87 @@
+# Document Commentary Skill
+# Version 1.0
+#
+# Generates structured commentary on any TwistedCollab data file
+# or directly on pasted text.  Two-step sequential pipeline:
+#   Step 1 – SourceFetchAgent reads the selected file / pasted text.
+#   Step 2 – CommentaryAgent generates commentary via Ollama.
+
+name: document_commentary
+version: "1.0"
+description: >
+  Generate structured commentary on a selected document or pasted text.
+  Choose the source type, pick a file, and optionally specify a focus angle
+  and tone. Produces an overview, key points, substantive commentary,
+  connections & implications, and open questions.
+
+parameters:
+  source_type:
+    type: str
+    required: true
+    default: notes
+    description: "Where to read the source content from"
+    allowed_values:
+      - text
+      - notes
+      - user_uploads
+      - skills
+      - news_articles
+      - twistednews
+      - reference_papers
+      - my_papers
+      - sessions
+
+  source_file:
+    type: str
+    required: false
+    default: ""
+    description: "File to comment on (auto-populated when Source Type is selected)"
+    linked_to: source_type
+
+  source_text:
+    type: text
+    required: false
+    default: ""
+    description: "Paste text here (only used when Source Type = text)"
+
+  commentary_focus:
+    type: str
+    required: false
+    default: ""
+    description: "Specific aspect or angle to focus the commentary on (optional)"
+
+  tone:
+    type: str
+    required: false
+    default: analytical
+    description: "Commentary tone"
+    allowed_values:
+      - analytical
+      - critical
+      - supportive
+      - neutral
+
+agents:
+  - role: source_fetch_agent
+    name: "Source Fetch"
+  - role: commentary_agent
+    name: "Commentary"
+
+workflow:
+  pattern: sequential
+  steps:
+    - step: 1
+      agent: source_fetch_agent
+      action: fetch_source
+      output: fetched_source
+
+    - step: 2
+      agent: commentary_agent
+      action: generate_commentary
+      output: commentary_result
+
+security:
+  max_execution_time: 300
+  max_memory_mb: 512
+  allowed_tools: [ollama_llm]
+  file_access: read_data

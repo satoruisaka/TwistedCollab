@@ -69,6 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSessions();
     initNotepad();
     initCollab();
+    initUtility();
+    initFileManager();
 
     // Welcome exchange toggle
     const welcomeHeader = document.querySelector('#welcome-exchange .exchange-header');
@@ -1258,10 +1260,90 @@ function selectSkill(skill, restoreOnly = false) {
 
     paramsSection.style.display = Object.keys(params).length ? '' : 'none';
     runSection.style.display = '';
+    setupParamReactivity(params);
+}
+
+// ---------------------------------------------------------
+// Param reactivity: linked_to → dynamic file-select
+// When a param has linked_to: X, fetch /api/markdown/list?source_dir=VALUE
+// whenever X changes, and repopulate this param's <select>.
+// Also toggles visibility of textarea params (source_text) vs file selects.
+// ---------------------------------------------------------
+function setupParamReactivity(params) {
+    Object.entries(params).forEach(([key, spec]) => {
+        if (!spec.linked_to) return;
+
+        const sourceEl  = document.getElementById(`collab-param-${spec.linked_to}`);
+        const targetEl  = document.getElementById(`collab-param-${key}`);
+        const targetRow = targetEl?.closest('.collab-param-row');
+
+        // Text-type params (textareas) that should show only when source type = 'text'
+        const textKeys = Object.entries(params)
+            .filter(([, s]) => s.type === 'text')
+            .map(([k]) => k);
+
+        async function updateFileSelect(dirValue) {
+            // Show/hide textarea vs file select
+            textKeys.forEach(k => {
+                const row = document.getElementById(`collab-param-${k}`)?.closest('.collab-param-row');
+                if (row) row.style.display = dirValue === 'text' ? '' : 'none';
+            });
+            if (targetRow) targetRow.style.display = dirValue === 'text' ? 'none' : '';
+            if (!dirValue || dirValue === 'text') return;
+
+            // Fetch filenames for the chosen directory
+            try {
+                const res = await fetch(`${API_BASE}/api/markdown/list?source_dir=${encodeURIComponent(dirValue)}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const files = data.files || [];
+                targetEl.innerHTML = '';
+                const ph = document.createElement('option');
+                ph.value = '';
+                ph.textContent = files.length ? '— select a file —' : '(no files found)';
+                targetEl.appendChild(ph);
+                files.forEach(f => {
+                    const opt = document.createElement('option');
+                    opt.value = f; opt.textContent = f;
+                    targetEl.appendChild(opt);
+                });
+            } catch (e) {
+                console.error('Failed to fetch file list:', e);
+                if (targetEl) targetEl.innerHTML = '<option value="">— error loading files —</option>';
+            }
+        }
+
+        if (sourceEl) {
+            sourceEl.addEventListener('change', e => updateFileSelect(e.target.value));
+            updateFileSelect(sourceEl.value);   // populate on initial render
+        }
+    });
 }
 
 function buildParamInput(key, spec) {
     const id = `collab-param-${key}`;
+
+    // Text type → multiline textarea (e.g. paste text for commentary)
+    if (spec.type === 'text') {
+        const ta = document.createElement('textarea');
+        ta.className = 'collab-param-textarea';
+        ta.id = id;
+        ta.rows = 5;
+        ta.placeholder = spec.required ? 'Required' : 'Optional — paste text here';
+        if (spec.default) ta.value = spec.default;
+        return ta;
+    }
+
+    // Str with linked_to → file-select populated dynamically by setupParamReactivity
+    if (spec.linked_to) {
+        const sel = document.createElement('select');
+        sel.className = 'collab-param-select';
+        sel.id = id;
+        const ph = document.createElement('option');
+        ph.value = ''; ph.textContent = '— select source type first —';
+        sel.appendChild(ph);
+        return sel;
+    }
 
     // Dict type → render a checkbox group where each key is a toggle
     if (spec.type === 'dict' && spec.default && typeof spec.default === 'object') {
@@ -1344,6 +1426,7 @@ function collectParams(skill) {
         if (s.type === 'int') {
             params[key] = val !== '' ? parseInt(val, 10) : (s.default ?? 0);
         } else {
+            // 'str', 'text' (textarea), and linked_to selects all use .value
             if (val !== '') params[key] = val;
         }
     });
@@ -1743,5 +1826,220 @@ function copyToClipboard(text, btn) {
             setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 2000);
         }
     } catch { btn.innerHTML = '❌ Failed'; setTimeout(() => { btn.innerHTML = orig; }, 2000); }
+}
+
+// ===========================================================================
+// Utility Tab
+// ===========================================================================
+const UTILITY_CARD_META = {
+    twistedpic:    { icon: '🎨', name: 'TwistedPic',    desc: 'AI image generator with rhetorical distortion' },
+    twisteddream:  { icon: '🌙', name: 'TwistedDream',  desc: 'Storybook generator with SDXL images' },
+    twisteddebate: { icon: '⚔️',  name: 'TwistedDebate', desc: 'Structured AI debate engine' },
+    excalidraw:    { icon: '✏️',  name: 'Excalidraw',   desc: 'Collaborative whiteboard drawing tool' },
+};
+
+async function initUtility() {
+    const grid = document.getElementById('utility-grid');
+    if (!grid) return;
+
+    let urls;
+    try {
+        const res = await fetch(`${API_BASE}/api/utility-urls`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        urls = await res.json();
+    } catch (err) {
+        grid.innerHTML = `<div class="utility-loading">⚠️ Could not load service URLs: ${err.message}</div>`;
+        return;
+    }
+
+    grid.innerHTML = '';
+    const services = ['twistedpic', 'twisteddream', 'twisteddebate', 'excalidraw'];
+    for (const key of services) {
+        const meta = UTILITY_CARD_META[key] || { icon: '🔧', name: key, desc: '' };
+        const url  = urls[key];
+        const card = document.createElement('div');
+        card.className = 'utility-card';
+
+        let btnHtml;
+        if (url) {
+            btnHtml = `<a class="utility-card-btn" href="${url}" target="_blank" rel="noopener noreferrer">Launch</a>`;
+        } else {
+            btnHtml = `<span class="utility-card-btn disabled">Coming Soon</span>`;
+        }
+
+        card.innerHTML = `
+            <div class="utility-card-icon">${meta.icon}</div>
+            <div class="utility-card-name">${meta.name}</div>
+            <div class="utility-card-desc">${meta.desc}</div>
+            ${btnHtml}
+        `;
+        grid.appendChild(card);
+    }
+}
+
+// ===========================================================================
+// File Manager (Utility Tab)
+// ===========================================================================
+
+let _fmCurrentPath = '';
+
+async function initFileManager() {
+    document.getElementById('fm-select-all').addEventListener('click', () => {
+        document.querySelectorAll('.fm-file-check').forEach(cb => cb.checked = true);
+        _fmUpdateDownloadBtn();
+    });
+    document.getElementById('fm-deselect-all').addEventListener('click', () => {
+        document.querySelectorAll('.fm-file-check').forEach(cb => cb.checked = false);
+        _fmUpdateDownloadBtn();
+    });
+    document.getElementById('fm-check-all').addEventListener('change', function () {
+        document.querySelectorAll('.fm-file-check').forEach(cb => cb.checked = this.checked);
+        _fmUpdateDownloadBtn();
+    });
+    document.getElementById('fm-download-zip').addEventListener('click', _fmDownloadSelected);
+    await _fmLoadPath('');
+}
+
+async function _fmLoadPath(path) {
+    _fmCurrentPath = path;
+    const tbody = document.getElementById('fm-tbody');
+    tbody.innerHTML = '<tr><td colspan="5" class="fm-loading">Loading…</td></tr>';
+
+    let data;
+    try {
+        const res = await fetch(`${API_BASE}/api/files/list?path=${encodeURIComponent(path)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        data = await res.json();
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="5" class="fm-loading">⚠️ ${_escHtml(err.message)}</td></tr>`;
+        return;
+    }
+
+    // Render breadcrumb
+    const bc = document.getElementById('fm-breadcrumb');
+    bc.innerHTML = data.breadcrumb.map((seg, i) => {
+        const isLast = i === data.breadcrumb.length - 1;
+        if (isLast) return `<span class="fm-bc-item fm-bc-active">${_escHtml(seg.name)}</span>`;
+        return `<span class="fm-bc-item fm-bc-link" data-path="${_escAttr(seg.path)}">${_escHtml(seg.name)}</span><span class="fm-bc-sep">›</span>`;
+    }).join('');
+    bc.querySelectorAll('.fm-bc-link').forEach(el =>
+        el.addEventListener('click', () => _fmLoadPath(el.dataset.path))
+    );
+
+    // Render table rows
+    if (data.entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="fm-loading">Empty directory</td></tr>';
+        document.getElementById('fm-check-all').checked = false;
+        _fmUpdateDownloadBtn();
+        return;
+    }
+
+    tbody.innerHTML = data.entries.map(e => {
+        if (e.type === 'dir') {
+            return `<tr class="fm-row-dir">
+                <td><span class="fm-dir-icon">📁</span></td>
+                <td colspan="3"><span class="fm-dir-link" data-path="${_escAttr(e.path)}">${_escHtml(e.name)}</span></td>
+                <td></td>
+            </tr>`;
+        }
+        const sizeStr = e.size != null ? _fmFormatSize(e.size) : '';
+        const dlUrl = `${API_BASE}/api/files/download?path=${encodeURIComponent(e.path)}`;
+        return `<tr class="fm-row-file">
+            <td><input type="checkbox" class="fm-file-check" data-path="${_escAttr(e.path)}"></td>
+            <td class="fm-cell-name"><span class="fm-file-icon">${_fmFileIcon(e.name)}</span>${_escHtml(e.name)}</td>
+            <td class="fm-cell-size">${sizeStr}</td>
+            <td class="fm-cell-date">${_escHtml(e.modified)}</td>
+            <td class="fm-cell-action"><a class="fm-dl-btn" href="${dlUrl}" download="${_escAttr(e.name)}" title="Download">⬇</a></td>
+        </tr>`;
+    }).join('');
+
+    tbody.querySelectorAll('.fm-dir-link').forEach(el =>
+        el.addEventListener('click', () => _fmLoadPath(el.dataset.path))
+    );
+    tbody.querySelectorAll('.fm-file-check').forEach(cb =>
+        cb.addEventListener('change', _fmUpdateDownloadBtn)
+    );
+    document.getElementById('fm-check-all').checked = false;
+    _fmUpdateDownloadBtn();
+
+    const fileCount = data.entries.filter(e => e.type === 'file').length;
+    const dirCount  = data.entries.filter(e => e.type === 'dir').length;
+    document.getElementById('fm-status').textContent =
+        `${fileCount} file(s)${dirCount ? ', ' + dirCount + ' folder(s)' : ''}`;
+}
+
+function _fmUpdateDownloadBtn() {
+    const selected = document.querySelectorAll('.fm-file-check:checked').length;
+    const btn = document.getElementById('fm-download-zip');
+    btn.disabled = selected === 0;
+    btn.textContent = selected > 1
+        ? `⬇ Download Selected (${selected})`
+        : '⬇ Download Selected';
+}
+
+async function _fmDownloadSelected() {
+    const paths = Array.from(document.querySelectorAll('.fm-file-check:checked')).map(cb => cb.dataset.path);
+    if (paths.length === 0) return;
+
+    // Single file: direct link
+    if (paths.length === 1) {
+        const a = document.createElement('a');
+        a.href = `${API_BASE}/api/files/download?path=${encodeURIComponent(paths[0])}`;
+        a.download = paths[0].split('/').pop();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+    }
+
+    // Multiple files: ZIP
+    const btn = document.getElementById('fm-download-zip');
+    const orig = btn.textContent;
+    btn.textContent = '⏳ Zipping…';
+    btn.disabled = true;
+    try {
+        const res = await fetch(`${API_BASE}/api/files/download-zip`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paths }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `twistedcollab_files_${Date.now()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+        document.getElementById('fm-status').textContent = `⚠️ Download failed: ${err.message}`;
+    } finally {
+        btn.textContent = orig;
+        _fmUpdateDownloadBtn();
+    }
+}
+
+function _fmFormatSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
+function _fmFileIcon(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    const icons = { md: '📄', json: '📋', txt: '📄', pdf: '📕', db: '🗄️', csv: '📊', zip: '🗜️', faiss: '🔍' };
+    return icons[ext] || '📄';
+}
+
+function _escHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function _escAttr(str) {
+    return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
