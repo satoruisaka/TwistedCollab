@@ -1838,6 +1838,9 @@ const UTILITY_CARD_META = {
     excalidraw:    { icon: '✏️',  name: 'Excalidraw',   desc: 'Collaborative whiteboard drawing tool' },
 };
 
+// Per-card runtime state: 'probing' | 'idle' | 'starting' | 'running' | 'error'
+const _utilityCardState = {};
+
 async function initUtility() {
     const grid = document.getElementById('utility-grid');
     if (!grid) return;
@@ -1859,23 +1862,146 @@ async function initUtility() {
         const url  = urls[key];
         const card = document.createElement('div');
         card.className = 'utility-card';
+        card.id = `utility-card-${key}`;
 
-        let btnHtml;
         if (url) {
-            btnHtml = `<a class="utility-card-btn" href="${url}" target="_blank" rel="noopener noreferrer">Launch</a>`;
+            card.innerHTML = `
+                <div class="utility-card-header">
+                    <span class="utility-status-dot utility-status-probing" id="utility-dot-${key}" title="Checking..."></span>
+                </div>
+                <div class="utility-card-icon">${meta.icon}</div>
+                <div class="utility-card-name">${meta.name}</div>
+                <div class="utility-card-desc">${meta.desc}</div>
+                <button class="utility-card-btn" id="utility-btn-${key}" disabled>Launch</button>
+                <div class="utility-card-msg" id="utility-msg-${key}"></div>
+            `;
+            grid.appendChild(card);
+            _initUtilityCard(key, url);
         } else {
-            btnHtml = `<span class="utility-card-btn disabled">Coming Soon</span>`;
+            card.innerHTML = `
+                <div class="utility-card-icon">${meta.icon}</div>
+                <div class="utility-card-name">${meta.name}</div>
+                <div class="utility-card-desc">${meta.desc}</div>
+                <span class="utility-card-btn disabled">Coming Soon</span>
+            `;
+            grid.appendChild(card);
         }
-
-        card.innerHTML = `
-            <div class="utility-card-icon">${meta.icon}</div>
-            <div class="utility-card-name">${meta.name}</div>
-            <div class="utility-card-desc">${meta.desc}</div>
-            ${btnHtml}
-        `;
-        grid.appendChild(card);
     }
 }
+
+function _initUtilityCard(key, url) {
+    _utilityCardState[key] = 'probing';
+    _utilitySetDot(key, 'probing');
+    _utilityCheckStatus(key).then(status => {
+        const running = status === 'running';
+        _utilityCardState[key] = running ? 'running' : 'idle';
+        _utilitySetDot(key, running ? 'running' : 'stopped');
+        const btn = document.getElementById(`utility-btn-${key}`);
+        if (btn) {
+            btn.disabled = false;
+            btn.onclick = () => _launchUtilityService(key, url);
+        }
+    });
+}
+
+async function _utilityCheckStatus(key) {
+    try {
+        const res = await fetch(`${API_BASE}/api/utility/status/${key}`);
+        if (!res.ok) return 'stopped';
+        const data = await res.json();
+        return data.status;
+    } catch { return 'stopped'; }
+}
+
+function _utilitySetDot(key, state) {
+    const dot = document.getElementById(`utility-dot-${key}`);
+    if (!dot) return;
+    dot.className = `utility-status-dot utility-status-${state}`;
+    const labels = { running: 'Running', stopped: 'Stopped', probing: 'Checking…',
+                     starting: 'Starting…', error: 'Error', unavailable: 'Unavailable' };
+    dot.title = labels[state] || state;
+}
+
+function _utilitySetMsg(key, msg) {
+    const el = document.getElementById(`utility-msg-${key}`);
+    if (el) el.textContent = msg;
+}
+
+async function _launchUtilityService(key, url) {
+    if (_utilityCardState[key] === 'starting') return;
+    const btn = document.getElementById(`utility-btn-${key}`);
+    if (!btn) return;
+
+    _utilitySetMsg(key, '');
+    btn.disabled = true;
+
+    // Open a blank tab immediately in the click handler to avoid popup blockers.
+    // We navigate it to the real URL once the service is confirmed running.
+    const newTab = window.open('', '_blank');
+
+    let data;
+    try {
+        const res = await fetch(`${API_BASE}/api/utility/launch/${key}`, { method: 'POST' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        data = await res.json();
+    } catch (err) {
+        _utilitySetDot(key, 'error');
+        btn.disabled = false;
+        _utilitySetMsg(key, `⚠️ Error: ${err.message}`);
+        if (newTab && !newTab.closed) newTab.close();
+        return;
+    }
+
+    if (data.status === 'running') {
+        _utilityCardState[key] = 'running';
+        _utilitySetDot(key, 'running');
+        btn.disabled = false;
+        if (newTab && !newTab.closed) newTab.location = url;
+        else window.open(url, '_blank');
+        return;
+    }
+
+    if (data.status === 'starting') {
+        _utilityCardState[key] = 'starting';
+        _utilitySetDot(key, 'starting');
+        btn.textContent = 'Starting…';
+        _utilitySetMsg(key, 'Service is starting, please wait…');
+
+        const deadline = Date.now() + 120000; // 2-minute timeout
+        while (Date.now() < deadline) {
+            await _utilitySleep(3000);
+            const status = await _utilityCheckStatus(key);
+            if (status === 'running') {
+                _utilityCardState[key] = 'running';
+                _utilitySetDot(key, 'running');
+                btn.textContent = 'Launch';
+                btn.disabled = false;
+                _utilitySetMsg(key, '');
+                if (newTab && !newTab.closed) newTab.location = url;
+                else window.open(url, '_blank');
+                return;
+            }
+            if (status === 'error') {
+                _utilityCardState[key] = 'idle';
+                _utilitySetDot(key, 'stopped');
+                btn.textContent = 'Launch';
+                btn.disabled = false;
+                _utilitySetMsg(key, '⚠️ Launch failed. Ensure Ollama & TwistedPair are running.');
+                if (newTab && !newTab.closed) newTab.close();
+                return;
+            }
+        }
+        // Timeout reached
+        _utilityCardState[key] = 'idle';
+        _utilitySetDot(key, 'stopped');
+        btn.textContent = 'Launch';
+        btn.disabled = false;
+        _utilitySetMsg(key, '⚠️ Timed out waiting for service to start.');
+        if (newTab && !newTab.closed) newTab.close();
+    }
+}
+
+function _utilitySleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ===========================================================================
 // File Manager (Utility Tab)

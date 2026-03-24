@@ -34,9 +34,16 @@ from retrieval_manager import RetrievalManager, SearchScope
 from web_search import WebSearchClient
 from ollama_client import OllamaClient
 from twistedpair_client import TwistedPairClient, DistortionMode, DistortionTone
-from config import NUM_CTX, DEFAULT_MODEL, MAX_OUTPUT_TOKENS, MAX_TEMPERATURE, MAX_TOP_P, MAX_TOP_K, UTILITY_URLS
+import requests as _http_requests
+from config import NUM_CTX, DEFAULT_MODEL, MAX_OUTPUT_TOKENS, MAX_TEMPERATURE, MAX_TOP_P, MAX_TOP_K, UTILITY_URLS, SERVICE_SCRIPTS
 from agents.runner import SkillRunner, get_runner, JobStatus
 from skills.skill_registry import SkillRegistry
+
+
+# Per-service startup state: "starting" | "error" | absent (idle/running)
+_service_launch_state: Dict[str, str] = {}
+_service_launch_procs: Dict[str, Any] = {}
+KNOWN_SERVICES = frozenset(UTILITY_URLS.keys())
 
 
 # Configure logging
@@ -239,6 +246,42 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Startup failed: {e}")
         raise
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Terminate any utility services that were started from the Utility tab.
+    Sends SIGTERM first to allow graceful shutdown, waits up to 5 seconds,
+    then sends SIGKILL if still running."""
+    import signal as _signal
+
+    for service, proc in list(_service_launch_procs.items()):
+        if proc.returncode is not None:
+            # Already exited on its own — nothing to do.
+            continue
+        try:
+            logger.info(f"Stopping '{service}' (pid={proc.pid})…")
+            proc.terminate()  # SIGTERM — gives the service a chance to clean up
+        except ProcessLookupError:
+            continue
+        except Exception as e:
+            logger.warning(f"Could not terminate '{service}': {e}")
+            continue
+
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=5.0)
+            logger.info(f"'{service}' stopped gracefully")
+        except asyncio.TimeoutError:
+            logger.warning(f"'{service}' did not stop in time — sending SIGKILL")
+            try:
+                proc.kill()
+                await proc.wait()
+            except Exception:
+                pass
+
+    _service_launch_procs.clear()
+    _service_launch_state.clear()
+    logger.info("TwistedCollab shutdown complete")
 
 
 # ============================================================================
@@ -795,6 +838,81 @@ async def get_utility_urls():
     A None value means the service has no web URL yet (placeholder).
     """
     return UTILITY_URLS
+
+
+@app.get("/api/utility/status/{service}")
+async def utility_service_status(service: str):
+    """Probe whether a utility service is reachable. Returns status: running | stopped | starting | error | unavailable."""
+    if service not in KNOWN_SERVICES:
+        raise HTTPException(status_code=404, detail="Unknown service")
+    url = UTILITY_URLS.get(service)
+    if not url:
+        return {"service": service, "status": "unavailable"}
+
+    # Check if the process we spawned has already exited with an error
+    proc = _service_launch_procs.get(service)
+    if proc is not None and proc.returncode is not None and proc.returncode != 0:
+        _service_launch_state[service] = "error"
+
+    loop = asyncio.get_event_loop()
+    try:
+        def _probe():
+            return _http_requests.get(url, timeout=3)
+        await loop.run_in_executor(None, _probe)
+        # Any HTTP response means the server is up
+        _service_launch_state.pop(service, None)
+        return {"service": service, "status": "running", "url": url}
+    except Exception:
+        pass
+
+    current_state = _service_launch_state.get(service, "stopped")
+    return {"service": service, "status": current_state}
+
+
+@app.post("/api/utility/launch/{service}")
+async def utility_service_launch(service: str):
+    """Check if a utility service is running; if not, spawn its startup script."""
+    if service not in KNOWN_SERVICES:
+        raise HTTPException(status_code=404, detail="Unknown service")
+    url = UTILITY_URLS.get(service)
+    if not url:
+        raise HTTPException(status_code=400, detail="Service has no configured URL")
+
+    # Deduplicate: if already starting and the process is still alive, report starting
+    if _service_launch_state.get(service) == "starting":
+        proc = _service_launch_procs.get(service)
+        if proc is not None and proc.returncode is None:
+            return {"service": service, "status": "starting", "url": url}
+
+    # Probe: is it already running?
+    loop = asyncio.get_event_loop()
+    try:
+        def _probe():
+            return _http_requests.get(url, timeout=3)
+        await loop.run_in_executor(None, _probe)
+        _service_launch_state.pop(service, None)
+        return {"service": service, "status": "running", "url": url}
+    except Exception:
+        pass
+
+    # Service is down — validate and spawn the startup script
+    script = SERVICE_SCRIPTS.get(service)
+    if not script or not os.path.isfile(script):
+        raise HTTPException(status_code=500, detail=f"Startup script not found for '{service}'")
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "bash", script,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        _service_launch_state[service] = "starting"
+        _service_launch_procs[service] = proc
+        logger.info(f"Launched startup script for '{service}' (pid={proc.pid})")
+        return {"service": service, "status": "starting", "url": url}
+    except Exception as e:
+        logger.error(f"Failed to launch startup script for '{service}': {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/health", response_model=HealthResponse)

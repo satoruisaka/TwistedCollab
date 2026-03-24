@@ -92,10 +92,20 @@ SERVER_URL = os.getenv("TWISTEDCOLLAB_SERVER_URL", "http://localhost:8000")
 # Override via environment variables if service ports/hosts differ
 UTILITY_HOST = os.getenv("UTILITY_HOST", "http://192.168.1.92")
 UTILITY_URLS = {
-    "twistedpic":   os.getenv("TWISTEDPIC_URL",   f"{UTILITY_HOST}:5001"),
-    "twisteddream": os.getenv("TWISTEDDREAM_URL",  f"{UTILITY_HOST}:5000"),
+    "twistedpic":   os.getenv("TWISTEDPIC_URL",   f"{UTILITY_HOST}:5000"),
+    "twisteddream": os.getenv("TWISTEDDREAM_URL",  f"{UTILITY_HOST}:5001"),
     "twisteddebate":os.getenv("TWISTEDDEBATE_URL", f"{UTILITY_HOST}:8004"),
     "excalidraw":   os.getenv("EXCALIDRAW_URL",    f"{UTILITY_HOST}:3001"),
+}
+
+# Startup scripts for on-demand service launch from the Utility tab
+# Keys must match UTILITY_URLS keys. Paths are resolved server-side; the service
+# name is validated against this whitelist before any script is executed.
+SERVICE_SCRIPTS = {
+    "twistedpic":    os.path.expanduser("~/project/startTwistedPic.sh"),
+    "twisteddream":  os.path.expanduser("~/project/startTwistedDream.sh"),
+    "twisteddebate": os.path.expanduser("~/project/startTwistedDebate.sh"),
+    "excalidraw":    os.path.expanduser("~/project/startExcalidraw.sh"),
 }
 
 # === TWISTEDPAIR V2 INTEGRATION ===
