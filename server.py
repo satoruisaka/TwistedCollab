@@ -967,7 +967,8 @@ async def health_check():
             services={
                 "ollama": {
                     "status": "online" if ollama_healthy else "offline",
-                    "models": ollama_models
+                    "models": ollama_models,
+                    "default_model": DEFAULT_MODEL
                 },
                 "twistedpair": {
                     "status": "online" if twistedpair_healthy else "offline"

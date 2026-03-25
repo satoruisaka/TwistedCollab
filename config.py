@@ -35,7 +35,7 @@ SOURCE_SKILLS_DIR = DATA_DIR / "markdown" / "skills"
 
 # External output directories (from other Twisted* projects)
 # Override via environment variables if paths differ on your system
-SOURCE_DEBATES_DIR = Path(os.getenv("TWISTED_DEBATES_DIR", str(PROJECT_ROOT.parent / "TwistedDebate" / "outputs")))
+SOURCE_DEBATES_DIR = Path(os.getenv("TWISTED_DEBATES_DIR", str(PROJECT_ROOT.parent / "TwistedDebate" / "v4" / "outputs")))
 SOURCE_PICS_DIR = Path(os.getenv("TWISTED_PICS_DIR", str(PROJECT_ROOT.parent / "TwistedPic" / "outputs")))
 SOURCE_DREAMS_DIR = Path(os.getenv("TWISTED_DREAMS_DIR", str(PROJECT_ROOT.parent / "TwistedDream" / "outputs")))
 

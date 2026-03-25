@@ -273,9 +273,10 @@ async function checkServiceStatus() {
             const models = data.services.ollama.models || [];
             if (models.length) {
                 modelSelect.disabled = false;
+                const defaultModel = data.services.ollama.default_model || '';
                 const prev = modelSelect.value || state.settings.model;
                 modelSelect.innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join('');
-                modelSelect.value = models.includes(prev) ? prev : models[0];
+                modelSelect.value = models.includes(prev) ? prev : (models.includes(defaultModel) ? defaultModel : models[0]);
                 state.settings.model = modelSelect.value;
             } else {
                 modelSelect.innerHTML = '<option value="">No models available</option>';
