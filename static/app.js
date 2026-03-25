@@ -49,6 +49,7 @@ const state = {
 };
 
 let currentExchange = null;
+let _defaultsApplied = false;  // apply server defaults only on first health check
 
 const API_BASE = window.location.origin;
 
@@ -281,6 +282,22 @@ async function checkServiceStatus() {
             } else {
                 modelSelect.innerHTML = '<option value="">No models available</option>';
                 modelSelect.disabled = true;
+            }
+            // Apply server-side defaults once on first load
+            if (!_defaultsApplied && data.services.ollama.default_settings) {
+                const ds = data.services.ollama.default_settings;
+                const sync = (id, displayId, val) => {
+                    const el = document.getElementById(id);
+                    if (el && val !== undefined) el.value = val;
+                    const disp = document.getElementById(displayId);
+                    if (disp && val !== undefined) disp.textContent = val;
+                };
+                if (ds.temperature  !== undefined) { state.settings.temperature  = ds.temperature;   sync('temperature',    'temp-value',           ds.temperature); }
+                if (ds.top_p        !== undefined) { state.settings.topP         = ds.top_p;          sync('top-p',          'top-p-value',          ds.top_p); }
+                if (ds.top_k        !== undefined) { state.settings.topKGen      = ds.top_k;          sync('top-k-gen',      'top-k-gen-value',      ds.top_k); }
+                if (ds.max_tokens   !== undefined) { state.settings.maxTokens    = ds.max_tokens;     sync('max-tokens',     'max-tokens-value',     ds.max_tokens); }
+                if (ds.context_window !== undefined) { state.settings.contextWindow = ds.context_window; sync('context-window', 'context-window-value', ds.context_window); }
+                _defaultsApplied = true;
             }
         } else {
             ollamaDot.classList.add('offline');

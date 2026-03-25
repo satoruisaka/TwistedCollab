@@ -116,8 +116,20 @@
                                     <option value="">Loading models...</option>
                                 </select>
 
-                                <label>Context Size</label>
-                                <input type="number" value="128000" min="4000" max="1000000" step="1000">
+                                <label>Context Size <span id="context-window-value" class="range-value">128000</span></label>
+                                <input type="number" id="context-window" value="128000" min="4000" max="1000000" step="1000">
+
+                                <label>Temperature <span id="temp-value" class="range-value">0.7</span></label>
+                                <input type="range" id="temperature" min="0.0" max="2.0" step="0.1" value="0.7">
+
+                                <label>Top P <span id="top-p-value" class="range-value">0.9</span></label>
+                                <input type="range" id="top-p" min="0.0" max="0.98" step="0.01" value="0.9">
+
+                                <label>Top K <span id="top-k-gen-value" class="range-value">40</span></label>
+                                <input type="range" id="top-k-gen" min="1" max="120" step="1" value="40">
+
+                                <label>Max Tokens <span id="max-tokens-value" class="range-value">8000</span></label>
+                                <input type="range" id="max-tokens" min="100" max="32000" step="100" value="8000">
                                 
                                 <label>Mode</label>
                                 <select id="distortion-mode">

@@ -35,7 +35,7 @@ from web_search import WebSearchClient
 from ollama_client import OllamaClient
 from twistedpair_client import TwistedPairClient, DistortionMode, DistortionTone
 import requests as _http_requests
-from config import NUM_CTX, DEFAULT_MODEL, MAX_OUTPUT_TOKENS, MAX_TEMPERATURE, MAX_TOP_P, MAX_TOP_K, UTILITY_URLS, SERVICE_SCRIPTS
+from config import NUM_CTX, DEFAULT_MODEL, DEFAULT_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS, DEFAULT_TEMPERATURE, DEFAULT_TOP_P, DEFAULT_TOP_K, MAX_TEMPERATURE, MAX_TOP_P, MAX_TOP_K, UTILITY_URLS, SERVICE_SCRIPTS
 from agents.runner import SkillRunner, get_runner, JobStatus
 from skills.skill_registry import SkillRegistry
 
@@ -65,10 +65,10 @@ class ChatMessageRequest(BaseModel):
     
     # LLM settings
     model: str = DEFAULT_MODEL
-    temperature: float = Field(0.7, ge=0.0, le=MAX_TEMPERATURE)
-    top_p: float = Field(0.9, ge=0.0, le=MAX_TOP_P)
-    top_k: int = Field(40, ge=0, le=MAX_TOP_K)
-    max_tokens: int = Field(MAX_OUTPUT_TOKENS, ge=100, le=MAX_OUTPUT_TOKENS)
+    temperature: float = Field(DEFAULT_TEMPERATURE, ge=0.0, le=MAX_TEMPERATURE)
+    top_p: float = Field(DEFAULT_TOP_P, ge=0.0, le=MAX_TOP_P)
+    top_k: int = Field(DEFAULT_TOP_K, ge=0, le=MAX_TOP_K)
+    max_tokens: int = Field(DEFAULT_OUTPUT_TOKENS, ge=100, le=MAX_OUTPUT_TOKENS)
     num_ctx: int = Field(NUM_CTX, ge=1000, le=NUM_CTX)
     
     # Retrieval settings
@@ -968,7 +968,14 @@ async def health_check():
                 "ollama": {
                     "status": "online" if ollama_healthy else "offline",
                     "models": ollama_models,
-                    "default_model": DEFAULT_MODEL
+                    "default_model": DEFAULT_MODEL,
+                    "default_settings": {
+                        "temperature": DEFAULT_TEMPERATURE,
+                        "top_p": DEFAULT_TOP_P,
+                        "top_k": DEFAULT_TOP_K,
+                        "max_tokens": DEFAULT_OUTPUT_TOKENS,
+                        "context_window": NUM_CTX
+                    }
                 },
                 "twistedpair": {
                     "status": "online" if twistedpair_healthy else "offline"
