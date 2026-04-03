@@ -64,8 +64,17 @@ OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "3m")  # Use Ollama default (
 
 # === LLM model SETTINGS ===
 # MAX_CHAT_HISTORY_TURNS = 10  # Keep last N turns in context
-DEFAULT_MODEL = "ministral-3:14b"
-NUM_CTX = 128000  # Context window (tokens) - keep this value not too high for low GPU machines
+DEFAULT_MODEL = "gemma4:26b"
+COMPRESSION_MODEL = "gemma4:e4b"
+NUM_CTX = 32000    # Default context window sent to Ollama per session
+MAX_CTX = 131072   # Maximum context window allowed via UI / API (hard ceiling)
+
+# === CONTEXT COMPRESSION SETTINGS ===
+# Model used to distill/summarize conversation history when context approaches the limit.
+# Defaults to COMPRESSION_MODEL (small/fast). Override via environment variable.
+CONTEXT_COMPRESSION_MODEL = os.getenv("COMPRESSION_MODEL", COMPRESSION_MODEL)
+# Compress when estimated token usage exceeds this fraction of NUM_CTX (0.0–1.0)
+CONTEXT_COMPRESSION_THRESHOLD = float(os.getenv("COMPRESSION_THRESHOLD", "0.80"))
 
 # Default output tokens
 DEFAULT_OUTPUT_TOKENS = 8000

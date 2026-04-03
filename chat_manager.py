@@ -15,17 +15,22 @@ data/sessions/
 """
 
 import json
+import logging
 import uuid
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 from dataclasses import dataclass, asdict, field
 from datetime import datetime
 
+import tiktoken
 from retrieval_manager import RetrievalManager, SearchScope
 from web_search import WebSearchClient
 from ollama_client import OllamaClient
 from twistedpair_client import TwistedPairClient, DistortionMode, DistortionTone
-from config import NUM_CTX, DEFAULT_MODEL, MAX_OUTPUT_TOKENS, MAX_TOP_P, MAX_TOP_K
+from config import (
+    NUM_CTX, DEFAULT_MODEL, MAX_OUTPUT_TOKENS, MAX_TOP_P, MAX_TOP_K,
+    CONTEXT_COMPRESSION_THRESHOLD, CONTEXT_COMPRESSION_MODEL,
+)
 
 
 @dataclass
@@ -131,6 +136,7 @@ class ChatSession:
         self.title: str = "New Session"  # Auto-generated from first message
         self.created_at = datetime.now().isoformat()
         self.updated_at = self.created_at
+        self.current_summary: str = ""  # Accumulated compression summary
         
         # Try to load existing session
         self._load_if_exists()
@@ -154,6 +160,7 @@ class ChatSession:
         self.title = data.get('title', 'Untitled Session')
         self.created_at = data.get('created_at', self.created_at)
         self.updated_at = data.get('updated_at', self.updated_at)
+        self.current_summary = data.get('current_summary', '')
         
         if 'settings' in data:
             self.settings = SessionSettings(**data['settings'])
@@ -266,6 +273,7 @@ class ChatSession:
             'created_at': self.created_at,
             'updated_at': self.updated_at,
             'settings': self.settings.to_dict(),
+            'current_summary': self.current_summary,
             'messages': [m.to_dict() for m in self.messages]
         }
         
@@ -281,6 +289,7 @@ class ChatSession:
             'title': self.title,
             'created_at': self.created_at,
             'updated_at': self.updated_at,
+            'current_summary': self.current_summary,
             'messages': [
                 {
                     'role': msg.role,
@@ -293,6 +302,95 @@ class ChatSession:
             'message_count': len(self.messages),
             'settings': self.settings.to_dict()
         }
+
+    def _estimate_tokens(self, text: str) -> int:
+        """Estimate token count using tiktoken (cl100k_base). Falls back to char/4."""
+        if not text:
+            return 0
+        try:
+            enc = tiktoken.get_encoding("cl100k_base")
+            return len(enc.encode(text))
+        except Exception:
+            return len(text) // 4
+
+    def get_total_context_tokens(self, extra_tokens: int = 0) -> int:
+        """Return estimated total tokens: summary + message history + extra (e.g. RAG)."""
+        summary_tokens = self._estimate_tokens(self.current_summary)
+        history_tokens = sum(self._estimate_tokens(m.content) for m in self.messages)
+        return summary_tokens + history_tokens + extra_tokens
+
+    def maybe_compress(self, ollama_client: OllamaClient, extra_tokens: int = 0) -> bool:
+        """
+        Compress conversation history into a rolling summary when context approaches
+        the configured threshold (CONTEXT_COMPRESSION_THRESHOLD * num_ctx).
+
+        Uses the LLM (CONTEXT_COMPRESSION_MODEL) to distill the current history,
+        merges the result into current_summary, and trims self.messages to the most
+        recent exchange. Falls back to simple message-trimming if the LLM call fails.
+
+        Args:
+            ollama_client: OllamaClient instance used for distillation.
+            extra_tokens:  Tokens already committed to the context window outside of
+                           history (e.g. RAG chunks injected into the system prompt).
+
+        Returns:
+            True if compression was triggered, False otherwise.
+        """
+        logger = logging.getLogger("ChatSession")
+        threshold = int(self.settings.num_ctx * CONTEXT_COMPRESSION_THRESHOLD)
+        total = self.get_total_context_tokens(extra_tokens)
+
+        if total <= threshold:
+            return False
+
+        logger.info(
+            f"Context threshold reached ({total}/{self.settings.num_ctx} tokens). Compressing..."
+        )
+
+        messages_for_compression = [
+            {'role': m.role, 'content': m.content}
+            for m in self.messages
+            if m.role in ('user', 'assistant')
+        ]
+        messages_for_compression.append({
+            'role': 'user',
+            'content': (
+                "Analyze the conversation above and produce a dense technical brief. "
+                "Preserve all code snippets, variable names, key decisions, and conclusions. "
+                "Remove all conversational filler and greetings."
+            )
+        })
+
+        try:
+            new_summary = ollama_client.chat(
+                messages=messages_for_compression,
+                model=CONTEXT_COMPRESSION_MODEL,
+                temperature=0.3,
+                max_tokens=2048,
+                num_ctx=self.settings.num_ctx
+            )
+            # Chain summaries so knowledge is never lost across multiple compressions
+            if self.current_summary:
+                self.current_summary = f"{self.current_summary}\n\n---\n\n{new_summary}"
+            else:
+                self.current_summary = new_summary
+
+            # Retain only the most recent user/assistant exchange for conversational flow
+            self.messages = [m for m in self.messages[-2:] if m.role in ('user', 'assistant')]
+            logger.info(
+                f"Compression complete. History trimmed to {len(self.messages)} messages."
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"Compression failed: {e}. Falling back to message trimming.")
+            fallback_limit = int(self.settings.num_ctx * 0.60)
+            while (
+                self.get_total_context_tokens(extra_tokens) > fallback_limit
+                and len(self.messages) > 2
+            ):
+                self.messages.pop(0)
+            return False
 
 
 class ChatManager:
@@ -477,15 +575,25 @@ class ChatManager:
         
         # 3. Build prompt with context
         context_summary = session.get_context_summary()
-        
+
+        # Compress context if approaching the token limit (RAG chunks count toward budget)
+        rag_tokens = session._estimate_tokens(context_summary)
+        session.maybe_compress(self.ollama, extra_tokens=rag_tokens)
+
+        # Inject accumulated compression summary so the LLM retains prior compressed context
+        summary_block = (
+            f"\nPrior Session Summary (compressed context):\n{session.current_summary}\n"
+            if session.current_summary else ""
+        )
+
         if context_summary:
             system_prompt = (
-                f"You are a helpful research assistant. "
+                f"You are a helpful research assistant.{summary_block} "
                 f"Answer based on the following context:\n\n{context_summary}\n\n"
                 f"If the context doesn't contain relevant information, say so."
             )
         else:
-            system_prompt = "You are a helpful research assistant."
+            system_prompt = f"You are a helpful research assistant.{summary_block}"
         
         # 4. Generate response with Ollama
         self._log(f"Generating with {session.settings.model}...")

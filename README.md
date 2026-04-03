@@ -177,6 +177,8 @@ All settings live in `config.py` and can be overridden via environment variables
 | `NUM_CTX` | `128000` | LLM context window (tokens) |
 | `DEFAULT_OUTPUT_TOKENS` | `8000` | Default response token limit |
 | `OLLAMA_KEEP_ALIVE` | `3m` | How long to hold model in GPU memory |
+| `CONTEXT_COMPRESSION_THRESHOLD` | `0.80` | Fraction of `NUM_CTX` at which rolling-summary compression triggers (0.0–1.0) |
+| `CONTEXT_COMPRESSION_MODEL` | `DEFAULT_MODEL` | Ollama model used to distill conversation history during compression |
 | `EMBEDDING_MODEL` | `BAAI/bge-large-en-v1.5` | Sentence embedding model |
 | `EMBEDDING_DIM` | `1024` | Embedding vector dimension |
 | `UNLOAD_EMBEDDER_AFTER_USE` | `True` | Free GPU after embedding queries |
@@ -509,10 +511,11 @@ When a message is sent with at least one data source checked:
 2. **Context assembly** — top-k results → `ContextItem` objects (snippet ≤ 300 chars)
 3. **Web search** (if enabled) — live results appended to context
 4. **Uploaded documents** — full content prepended if files were uploaded in the session
-5. **Prompt construction** — `ChatManager` builds system prompt with all context + conversation history
-6. **Streaming generation** — `OllamaClient.chat_stream()` streams tokens via SSE
-7. **Distortion** (if enabled) — full response passed through `TwistedPairClient.distort()` before display
-8. **Session save** — exchange auto-saved to JSON; session auto-indexed on close
+5. **Context compression** (if needed) — RAG token cost estimated; `ChatSession.maybe_compress()` triggers rolling-summary distillation if total context approaches the threshold (see [Context Management](#context-size-and-conversation-history-management))
+6. **Prompt construction** — `ChatManager` builds system prompt with RAG context + prior session summary (if any) + conversation history
+7. **Streaming generation** — `OllamaClient.chat_stream()` streams tokens via SSE
+8. **Distortion** (if enabled) — full response passed through `TwistedPairClient.distort()` before display
+9. **Session save** — exchange auto-saved to JSON (including updated `current_summary`); session auto-indexed on close
 
 ---
 
@@ -589,6 +592,53 @@ data/sessions/
 ```
 
 Sessions are resumable from the Sessions tab. Closed sessions are auto-indexed so their content becomes searchable in future conversations.
+
+### Context Size and Conversation History Management
+
+Long research sessions naturally accumulate more tokens than the LLM's context window can hold. TwistedCollab manages this with a **rolling-summary compression** system implemented in `ChatSession` (`chat_manager.py`).
+
+#### Token Accounting
+
+Every turn, before the request is sent to Ollama, the system estimates the total token load using `tiktoken` (`cl100k_base` tokenizer — the same tokenizer used by the FAISS chunker):
+
+```
+total_tokens = tokens(current_summary)
+             + tokens(all messages in history)
+             + tokens(RAG context injected into system prompt)
+```
+
+The `tiktoken`-based counter handles code, JSON, and mathematical notation accurately (unlike a naïve `characters / 3.5` estimate, which can undercount code-heavy sessions by 50%+). A character-count fallback (`len // 4`) is used only if `tiktoken` is unavailable.
+
+#### Compression Trigger
+
+If `total_tokens` exceeds `CONTEXT_COMPRESSION_THRESHOLD × num_ctx` (default: 80% of the session's context window), the system triggers a **Technical Distillation** pass before the new user message is sent:
+
+1. All current `user` / `assistant` messages in `self.messages` are assembled into a distillation prompt.
+2. The LLM (`CONTEXT_COMPRESSION_MODEL`, default: `DEFAULT_MODEL`) is asked to produce a **dense technical brief** that preserves code snippets, variable names, logic decisions, and conclusions while removing all conversational filler.
+3. The result is **chained** onto `self.current_summary` (separated by `---`) so knowledge is never lost across multiple compression cycles within the same session.
+4. `self.messages` is trimmed to the **two most recent messages** to maintain immediate conversational flow.
+
+#### Compression Fallback
+
+If the LLM distillation call fails (network error, model unavailable, timeout), a graceful fallback is applied: oldest messages are popped from `self.messages` one at a time until the estimated token total drops below 60% of the context limit. Context is degraded but the session is never left in an over-limit state.
+
+#### Summary Injection
+
+After compression (or on any turn where a prior summary exists), `current_summary` is injected into the system prompt under a `Prior Session Summary (compressed context):` header. This means the LLM always has access to everything that happened earlier in the session, regardless of how many compression cycles have occurred.
+
+#### Persistence
+
+`current_summary` is serialised into the session's JSON file alongside messages and settings. When a session is resumed from the Sessions tab, the summary is restored and immediately available — no re-compression needed.
+
+#### Configuration
+
+| Key | Default | How to override |
+|---|---|---|
+| `CONTEXT_COMPRESSION_THRESHOLD` | `0.80` | `COMPRESSION_THRESHOLD=0.75` in `.env` |
+| `CONTEXT_COMPRESSION_MODEL` | `DEFAULT_MODEL` | `COMPRESSION_MODEL=gemma3:27b` in `.env` |
+| `NUM_CTX` | `128000` | Set per-session in LLM Settings UI or in `config.py` |
+
+Using a smaller, faster model for compression (e.g. `ministral-3:14b`) reduces the latency of compression turns. Using a larger model (e.g. `gemma3:27b`) produces higher-fidelity summaries for complex technical sessions.
 
 ---
 
@@ -702,7 +752,7 @@ TwistedCollab/
 | File | Role |
 | --- | --- |
 | `server.py` | FastAPI app, all REST endpoints, request/response models |
-| `chat_manager.py` | Session lifecycle, message history, prompt construction |
+| `chat_manager.py` | Session lifecycle, message history, rolling-summary context compression, prompt construction |
 | `retrieval_manager.py` | Unified interface to FAISS + keyword search |
 | `faiss_indexer.py` | Single-stage FAISS builder, searcher, incremental updater |
 | `keyword_indexer.py` | SQLite FTS5 builder and searcher |
@@ -742,6 +792,8 @@ TwistedCollab/
 | `TWISTEDPAIR_URL` | TwistedPair server (default: `http://localhost:8001`) |
 | `BRAVE_API_KEY` | Brave Search API key |
 | `OLLAMA_KEEP_ALIVE` | GPU keep-alive duration (default: `3m`) |
+| `COMPRESSION_MODEL` | Ollama model for context compression distillation (default: `DEFAULT_MODEL`) |
+| `COMPRESSION_THRESHOLD` | Context compression trigger as fraction of `NUM_CTX` (default: `0.80`) |
 | `LOG_LEVEL` | Logging level (default: `INFO`) |
 | `TWISTED_DEBATES_DIR` | Path to TwistedDebate outputs (default: `../TwistedDebate/outputs`) |
 | `TWISTED_PICS_DIR` | Path to TwistedPic outputs (default: `../TwistedPic/outputs`) |
