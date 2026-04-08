@@ -47,6 +47,7 @@ def register_all_agents() -> None:
     from agents.extraction_agent import ExtractionAgent
     from agents.source_fetch_agent import SourceFetchAgent
     from agents.commentary_agent import CommentaryAgent
+    from agents.twistedcore_agent import TwistedCoreAgent
 
     AgentRegistry.register(SearchAgent)
     AgentRegistry.register(FilterAgent)
@@ -55,3 +56,4 @@ def register_all_agents() -> None:
     AgentRegistry.register(ExtractionAgent)
     AgentRegistry.register(SourceFetchAgent)
     AgentRegistry.register(CommentaryAgent)
+    AgentRegistry.register(TwistedCoreAgent)

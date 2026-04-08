@@ -97,6 +97,10 @@ PRESENCE_PENALTY = 0.0
 # === SERVER SETTINGS ===
 SERVER_URL = os.getenv("TWISTEDCOLLAB_SERVER_URL", "http://localhost:8000")
 
+# === TWISTEDCORE INTEGRATION ===
+# TwistedCore daemon — personal AI secretary on :8020
+TWISTEDCORE_URL = os.getenv("TWISTEDCORE_URL", "http://localhost:8020")
+
 # === UTILITY LAUNCHER URLs ===
 # Override via environment variables if service ports/hosts differ
 UTILITY_HOST = os.getenv("UTILITY_HOST", "http://192.168.1.92")

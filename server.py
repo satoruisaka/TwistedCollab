@@ -16,6 +16,7 @@ Endpoints:
 
 import os
 import logging
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -43,6 +44,62 @@ from skills.skill_registry import SkillRegistry
 # Per-service startup state: "starting" | "error" | absent (idle/running)
 _service_launch_state: Dict[str, str] = {}
 _service_launch_procs: Dict[str, Any] = {}
+
+# ============================================================================
+# TwistedCore integration (fire-and-forget memory broker notifications)
+# ============================================================================
+
+_TWISTEDCORE_URL = os.getenv("TWISTEDCORE_URL", "http://localhost:8020")
+_INACTIVITY_SECONDS = 300  # 5 minutes
+_inactivity_timers: Dict[str, threading.Timer] = {}
+
+
+def _notify_twistedcore(
+    event_type: str,
+    session_id: str,
+    source_path: str,
+    partial: bool = False,
+) -> None:
+    """Fire-and-forget POST to TwistedCore /observe. Never raises."""
+    try:
+        _http_requests.post(
+            f"{_TWISTEDCORE_URL}/observe",
+            json={
+                "source": "TwistedCollab",
+                "event_type": event_type,
+                "session_id": session_id,
+                "source_path": source_path,
+                "partial": partial,
+            },
+            timeout=1.0,
+        )
+    except Exception:
+        pass  # TwistedCore being down must never affect TwistedCollab
+
+
+def _latest_collab_session_file(session_id: str) -> str:
+    """Return absolute path to the most recently written file for a session."""
+    sessions_dir = Path("data/sessions")
+    files = sorted(sessions_dir.glob(f"{session_id}_*.json"))
+    return str(files[-1].resolve()) if files else ""
+
+
+def _reset_inactivity_timer(session_id: str) -> None:
+    """(Re)start a 5-minute inactivity timer for the given session."""
+    old = _inactivity_timers.pop(session_id, None)
+    if old:
+        old.cancel()
+
+    def _on_inactivity() -> None:
+        _inactivity_timers.pop(session_id, None)
+        source_path = _latest_collab_session_file(session_id)
+        if source_path:
+            _notify_twistedcore("inactivity", session_id, source_path, partial=True)
+
+    timer = threading.Timer(_INACTIVITY_SECONDS, _on_inactivity)
+    timer.daemon = True
+    timer.start()
+    _inactivity_timers[session_id] = timer
 KNOWN_SERVICES = frozenset(UTILITY_URLS.keys())
 
 
@@ -506,8 +563,15 @@ async def chat_message_stream(request: ChatMessageRequest):
                     'context_count': len(context_items),
                     'ensemble': ensemble_outputs is not None
                 })
-                session.save()
-                
+                saved_path = session.save()
+
+                # Inactivity timer: reset on every turn
+                _reset_inactivity_timer(session.session_id)
+
+                # Overflow: notify TwistedCore if session has grown very large
+                if len(session.messages) > 100:
+                    _notify_twistedcore("overflow", session.session_id, saved_path, partial=True)
+
                 # Send done signal
                 yield f"data: {json_lib.dumps({'type': 'done'})}\n\n"
                 
@@ -564,7 +628,18 @@ async def chat_message(request: ChatMessageRequest):
             message=request.message,
             settings=settings
         )
-        
+
+        # Inactivity timer: reset on every turn; check for overflow
+        _sid = response["session_id"]
+        _reset_inactivity_timer(_sid)
+        _active_session = chat_manager.sessions.get(_sid)
+        if _active_session and len(_active_session.messages) > 100:
+            _notify_twistedcore(
+                "overflow", _sid,
+                _latest_collab_session_file(_sid),
+                partial=True,
+            )
+
         return ChatMessageResponse(**response)
         
     except Exception as e:
@@ -576,9 +651,22 @@ async def chat_message(request: ChatMessageRequest):
 async def end_session(request: EndSessionRequest):
     """End chat session and save final state."""
     try:
+        # Cancel any pending inactivity timer for this session
+        old_timer = _inactivity_timers.pop(request.session_id, None)
+        if old_timer:
+            old_timer.cancel()
+
         result = chat_manager.end_session(request.session_id)
+
+        # Notify TwistedCore that the session has ended
+        _notify_twistedcore(
+            "session_end",
+            result["session_id"],
+            result["log_path"],
+        )
+
         return EndSessionResponse(**result)
-        
+
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

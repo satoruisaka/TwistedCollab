@@ -1,0 +1,113 @@
+# TwistedCore Session Query Skill
+# Version 1.0
+#
+# Demonstrates how to call TwistedCore from a TwistedCollab skill.
+#
+# Workflow (3 steps)
+# ------------------
+#   Step 1 – Fetch any open [PENDING] items from TwistedCore's L2 memory.
+#             This shows what TwistedCore has been asked to follow up on
+#             across previous sessions.
+#
+#   Step 2 – Fetch recent compressed session summaries from TwistedCore's
+#             L2 journal.  This reflects what TwistedCore has already
+#             learned / discussed with the user.
+#
+#   Step 3 – Forward the user's question to TwistedCore.  Internally
+#             TwistedCore will classify intent, enrich the query with its
+#             own L2/L3 context, and route to the appropriate handler
+#             (retrieval, conversation, skill, or utility).
+#
+# The final result (tc_response) contains the TwistedCore answer, the
+# handler that was used, and any metadata.  Steps 1–2 outputs are
+# available in the full skill context for debugging / display.
+
+name: twistedcore_query
+version: "1.0"
+description: >
+  Sample integration skill: forwards a question to TwistedCore and
+  surfaces its persistent memory (pending items and recent session
+  summaries) alongside the answer.  Use this as a template for any
+  skill that needs memory-enriched responses from TwistedCore.
+
+parameters:
+  question:
+    type: str
+    required: true
+    description: "The question or instruction to send to TwistedCore"
+
+  context_entries:
+    type: int
+    required: false
+    default: 3
+    description: "Number of recent L2 session summaries to retrieve from TwistedCore"
+    min_value: 1
+    max_value: 10
+
+  source:
+    type: str
+    required: false
+    default: "api"
+    description: "Input source hint passed to TwistedCore ('text', 'voice', or 'api')"
+    allowed_values:
+      - text
+      - voice
+      - api
+
+agents:
+  - role: twistedcore_agent
+    name: "TwistedCore Memory — Pending Items"
+  - role: twistedcore_agent
+    name: "TwistedCore Memory — Session Context"
+  - role: twistedcore_agent
+    name: "TwistedCore Query"
+
+workflow:
+  pattern: sequential
+  steps:
+
+    # ------------------------------------------------------------------
+    # Step 1: surface any open [PENDING] items so the caller can see
+    # what TwistedCore is already tracking.
+    # ------------------------------------------------------------------
+    - step: 1
+      agent: twistedcore_agent
+      action: get_pending
+      output: open_items
+      # Receives full param context; ignores unknown keys gracefully.
+
+    # ------------------------------------------------------------------
+    # Step 2: pull the most recent compressed session summaries from
+    # TwistedCore's L2 journal.  Illustrates that the memory persists
+    # across chat sessions and is structured (topics / decisions /
+    # pending tags).
+    # ------------------------------------------------------------------
+    - step: 2
+      agent: twistedcore_agent
+      action: get_context
+      output: recent_sessions
+      input_mapping:
+        n: "{{context_entries}}"
+
+    # ------------------------------------------------------------------
+    # Step 3: send the actual question through TwistedCore's full pipeline.
+    # TwistedCore will:
+    #   1. Normalise and clean the input
+    #   2. Enrich it with its own L2/L3 context
+    #   3. Classify intent (QUERY / COMMAND / CONVERSATION)
+    #   4. Route to the appropriate handler and return a response
+    # ------------------------------------------------------------------
+    - step: 3
+      agent: twistedcore_agent
+      action: query
+      output: tc_response
+      input_mapping:
+        question: "{{question}}"
+        source:   "{{source}}"
+
+security:
+  max_execution_time: 180    # seconds — network calls to TwistedCore + Ollama
+  max_memory_mb: 256
+  allowed_tools:
+    - twistedcore_api
+  file_access: none
