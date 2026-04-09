@@ -947,7 +947,7 @@ async def utility_service_status(service: str):
     loop = asyncio.get_event_loop()
     try:
         def _probe():
-            return _http_requests.get(url, timeout=3)
+            return _http_requests.get(url, timeout=3, verify=False)
         await loop.run_in_executor(None, _probe)
         # Any HTTP response means the server is up
         _service_launch_state.pop(service, None)
@@ -978,7 +978,7 @@ async def utility_service_launch(service: str):
     loop = asyncio.get_event_loop()
     try:
         def _probe():
-            return _http_requests.get(url, timeout=3)
+            return _http_requests.get(url, timeout=3, verify=False)
         await loop.run_in_executor(None, _probe)
         _service_launch_state.pop(service, None)
         return {"service": service, "status": "running", "url": url}

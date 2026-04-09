@@ -1855,7 +1855,7 @@ const UTILITY_CARD_META = {
     twisteddebate: { icon: '⚔️',  name: 'TwistedDebate', desc: 'Structured AI debate engine' },
     twisteddream:  { icon: '🌙', name: 'TwistedDream',  desc: 'Storybook generator with SDXL images' },
     twistedvoice:  { icon: '🎙️', name: 'TwistedVoice',  desc: 'Voice-driven RAG assistant' },
-    excalidraw:    { icon: '✏️',  name: 'Excalidraw',   desc: 'Collaborative whiteboard drawing tool' }
+    twisteddraw:   { icon: '✏️',  name: 'TwistedDraw',  desc: 'AI-powered Excalidraw drawing tool' }
 };
 
 // Per-card runtime state: 'probing' | 'idle' | 'starting' | 'running' | 'error'
@@ -1876,7 +1876,7 @@ async function initUtility() {
     }
 
     grid.innerHTML = '';
-    const services = ['twistedcore', 'twistedpic', 'twisteddebate', 'twisteddream', 'twistedvoice', 'excalidraw'];
+    const services = ['twistedcore', 'twistedpic', 'twisteddebate', 'twisteddream', 'twistedvoice', 'twisteddraw'];
     for (const key of services) {
         const meta = UTILITY_CARD_META[key] || { icon: '🔧', name: key, desc: '' };
         const url  = urls[key];

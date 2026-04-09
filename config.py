@@ -109,8 +109,8 @@ UTILITY_URLS = {
     "twistedpic":   os.getenv("TWISTEDPIC_URL",   f"{UTILITY_HOST}:5000"),
     "twisteddebate":os.getenv("TWISTEDDEBATE_URL", f"{UTILITY_HOST}:8004"),
     "twisteddream": os.getenv("TWISTEDDREAM_URL",  f"{UTILITY_HOST}:5001"),
-    "twistedvoice": os.getenv("TWISTEDVOICE_URL",  f"{UTILITY_HOST}:8010"),
-    "excalidraw":   os.getenv("EXCALIDRAW_URL",    f"{UTILITY_HOST}:3001")
+    "twistedvoice": os.getenv("TWISTEDVOICE_URL",  f"https://192.168.1.92:8010"),
+    "twisteddraw":  os.getenv("TWISTEDDRAW_URL",   f"{UTILITY_HOST}:3002")
 }
 
 # Startup scripts for on-demand service launch from the Utility tab
@@ -122,7 +122,7 @@ SERVICE_SCRIPTS = {
     "twisteddebate": os.path.expanduser("~/project/startTwistedDebate.sh"),
     "twisteddream":  os.path.expanduser("~/project/startTwistedDream.sh"),
     "twistedvoice":  os.path.expanduser("~/project/startTwistedVoice.sh"),
-    "excalidraw":    os.path.expanduser("~/project/startExcalidraw.sh")
+    "twisteddraw":   os.path.expanduser("~/project/startTwistedDraw.sh")
 }
 
 # === TWISTEDPAIR V2 INTEGRATION ===
