@@ -1850,10 +1850,12 @@ function copyToClipboard(text, btn) {
 // Utility Tab
 // ===========================================================================
 const UTILITY_CARD_META = {
+    twistedcore:   { icon: '🧠', name: 'TwistedCore',   desc: 'Cross-app memory broker & activity dashboard' },
     twistedpic:    { icon: '🎨', name: 'TwistedPic',    desc: 'AI image generator with rhetorical distortion' },
-    twisteddream:  { icon: '🌙', name: 'TwistedDream',  desc: 'Storybook generator with SDXL images' },
     twisteddebate: { icon: '⚔️',  name: 'TwistedDebate', desc: 'Structured AI debate engine' },
-    excalidraw:    { icon: '✏️',  name: 'Excalidraw',   desc: 'Collaborative whiteboard drawing tool' },
+    twisteddream:  { icon: '🌙', name: 'TwistedDream',  desc: 'Storybook generator with SDXL images' },
+    twistedvoice:  { icon: '🎙️', name: 'TwistedVoice',  desc: 'Voice-driven RAG assistant' },
+    excalidraw:    { icon: '✏️',  name: 'Excalidraw',   desc: 'Collaborative whiteboard drawing tool' }
 };
 
 // Per-card runtime state: 'probing' | 'idle' | 'starting' | 'running' | 'error'
@@ -1874,7 +1876,7 @@ async function initUtility() {
     }
 
     grid.innerHTML = '';
-    const services = ['twistedpic', 'twisteddream', 'twisteddebate', 'excalidraw'];
+    const services = ['twistedcore', 'twistedpic', 'twisteddebate', 'twisteddream', 'twistedvoice', 'excalidraw'];
     for (const key of services) {
         const meta = UTILITY_CARD_META[key] || { icon: '🔧', name: key, desc: '' };
         const url  = urls[key];

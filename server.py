@@ -308,17 +308,19 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Terminate any utility services that were started from the Utility tab.
-    Sends SIGTERM first to allow graceful shutdown, waits up to 5 seconds,
-    then sends SIGKILL if still running."""
+    Sends SIGTERM to the entire process group (so uvicorn reloader children are
+    included), waits up to 5 seconds, then sends SIGKILL if still running."""
     import signal as _signal
+    import os as _os
 
     for service, proc in list(_service_launch_procs.items()):
         if proc.returncode is not None:
             # Already exited on its own — nothing to do.
             continue
         try:
-            logger.info(f"Stopping '{service}' (pid={proc.pid})…")
-            proc.terminate()  # SIGTERM — gives the service a chance to clean up
+            logger.info(f"Stopping '{service}' (pid={proc.pid}, pgid={proc.pid})…")
+            # Kill entire process group so uvicorn + its reloader children all receive SIGTERM
+            _os.killpg(proc.pid, _signal.SIGTERM)
         except ProcessLookupError:
             continue
         except Exception as e:
@@ -331,7 +333,7 @@ async def shutdown_event():
         except asyncio.TimeoutError:
             logger.warning(f"'{service}' did not stop in time — sending SIGKILL")
             try:
-                proc.kill()
+                _os.killpg(proc.pid, _signal.SIGKILL)
                 await proc.wait()
             except Exception:
                 pass
@@ -993,6 +995,7 @@ async def utility_service_launch(service: str):
             "bash", script,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
+            start_new_session=True,  # own process group so killpg reaches all children
         )
         _service_launch_state[service] = "starting"
         _service_launch_procs[service] = proc
