@@ -33,7 +33,7 @@ I then launch ***TwistedCollab*** and begin my work:
 - From **Utility** Tab, I launch various Twisted services:
   - ***TwistedCore*** - Cross-app memory broker & activity dashboard
   - ***TwistedDebate*** - agentic debate for deep analyses (one-on-one debate, cross-examination, panel discussion, round-robin comments)
-  - ***TwistedDraw*** - AI-powered Excalidraw drawing tool
+  - ***TwistedDraw*** - AI-powered drawing tool
   - ***TwistedDream*** - custom story generation with illustrations and TwistedPair distortion
   - ***TwistedPic*** - custom image generation with TwistedPair distortion
   - ***TwistedVoice*** - Voice UI and RAG assistant agents
