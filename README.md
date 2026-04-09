@@ -1,12 +1,14 @@
 # TwistedCollab
 
-Created: October 2025 · Updated: March 24, 2026
+Created: October 2025 · Updated: April 9, 2026
 
 - Fully self-contained Web browser application, serving as an agentic research assistant with ***no cloud dependencies***, collaborating with local LLMs in agentic workflows to access, analyze, and act on data.
 
 - Core functions: RAG-powered chat, Multi-task agent workflows, Markdown file edits and previews, live Web search, semantic and keyword search on local documents, session history, notes, uploads, news articles, and various AI agent outputs.
 
-- Special features: Uniquely integrated with ***Twisted*** services: [***TwistedPair***]( https://github.com/satoruisaka/TwistedPair), [***TwistedDebate***](https://github.com/satoruisaka/TwistedDebate), [***TwistedDream***](https://github.com/satoruisaka/TwistedDream), [***TwistedNews***](https://github.com/satoruisaka/TwistedNews), and [***TwistedPic***](https://github.com/satoruisaka/TwistedPic).
+- Special features: Uniquely integrated with ***Twisted*** services: [***TwistedCore***]( https://github.com/satoruisaka/TwistedCore), [***TwistedDebate***](https://github.com/satoruisaka/TwistedDebate), ***TwistedDraw***,
+[***TwistedDream***](https://github.com/satoruisaka/TwistedDream), [***TwistedNews***](https://github.com/satoruisaka/TwistedNews), and [***TwistedPair***]( https://github.com/satoruisaka/TwistedPair), [***TwistedPic***](https://github.com/satoruisaka/TwistedPic), and
+[***TwistedVoice***](https://github.com/satoruisaka/TwistedVoice).
 
 ## Target User and Objective
 
@@ -29,17 +31,19 @@ I then launch ***TwistedCollab*** and begin my work:
 - From **Sessions** Tab, I revisit previous sessions to resume idea brainstorming.
 - From **Collab** Tab, I launch agentic workflows (e.g. literature search, literature review, document commentary).
 - From **Utility** Tab, I launch various Twisted services:
-  - ***TwistedPic*** - custom image generation with TwistedPair distortion
-  - ***TwistedDream*** - custom story generation with illustrations and TwistedPair distortion
+  - ***TwistedCore*** - Cross-app memory broker & activity dashboard
   - ***TwistedDebate*** - agentic debate for deep analyses (one-on-one debate, cross-examination, panel discussion, round-robin comments)
-  - *Excalidraw* - drawing tool
+  - ***TwistedDraw*** - AI-powered Excalidraw drawing tool
+  - ***TwistedDream*** - custom story generation with illustrations and TwistedPair distortion
+  - ***TwistedPic*** - custom image generation with TwistedPair distortion
+  - ***TwistedVoice*** - Voice UI and RAG assistant agents
 
 If I need a new workflow, I open VS Code + Roo Code or Copilot Chat and build new agents (python) and skills (yaml) and restart TwistedCollab server.
 
 ## Local models I use
 
 - ministral-3:14b - default model for quick response
-- gemma3:27b - instruction following tasks, brainstorming
+- gemma4:26b - instruction following tasks, brainstorming
 - qwen3-coder:30b - programming
 - qwen3.5:27b and 35b - brainstorming, architecting
 - deepseek-r1:8b - agentic debates
