@@ -276,7 +276,7 @@ class FAISSIndexer:
 
         # Gather candidate files
         exts = {".md", ".json", ".txt"}
-        files = [p for p in source_path.rglob("*") if p.is_file() and p.suffix in exts]
+        files = [p for p in source_path.rglob("*") if p.is_file() and p.suffix in exts and "temp" not in p.parts]
         self._log(f"{len(files)} candidate files")
 
         # Force rebuild: clear in-memory state

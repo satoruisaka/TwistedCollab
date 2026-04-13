@@ -130,6 +130,8 @@ class ChatSession:
         self.settings = settings or SessionSettings()
         self.sessions_dir = Path(sessions_dir)
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
+        self.temp_dir = self.sessions_dir / "temp"
+        self.temp_dir.mkdir(parents=True, exist_ok=True)
         
         self.messages: List[Message] = []
         self.context: List[ContextItem] = []
@@ -141,16 +143,38 @@ class ChatSession:
         # Try to load existing session
         self._load_if_exists()
     
+    def _canonical_path(self) -> Path:
+        """Return the canonical file path: data/sessions/{YYYYMMDD}_{uuid8}.json"""
+        date_str = self.created_at[:10].replace('-', '')
+        uuid8 = self.session_id[:8]
+        return self.sessions_dir / f"{date_str}_{uuid8}.json"
+
     def _load_if_exists(self):
-        """Load session from disk if it exists."""
-        session_files = list(self.sessions_dir.glob(f"{self.session_id}_*.json"))
-        
-        if session_files:
-            # Load most recent
-            session_file = sorted(session_files)[-1]
-            with open(session_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                self._from_dict(data)
+        """Load session from disk.
+        1. Try canonical path derived from current created_at (fast path for new sessions).
+        2. Glob sessions_dir for any canonical file ending in _{uuid8}.json (handles existing
+           sessions whose creation date differs from today's initialised created_at).
+        3. Fall back to most recent temp snapshot for crash recovery.
+        """
+        canonical = self._canonical_path()
+        if canonical.exists():
+            with open(canonical, 'r', encoding='utf-8') as f:
+                self._from_dict(json.load(f))
+            return
+
+        # Search for a canonical file with any date prefix matching this session's uuid8
+        uuid8 = self.session_id[:8]
+        matches = sorted(self.sessions_dir.glob(f"[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_{uuid8}.json"))
+        if matches:
+            with open(matches[-1], 'r', encoding='utf-8') as f:
+                self._from_dict(json.load(f))
+            return
+
+        # Fallback: load from most recent temp snapshot (crash recovery)
+        temp_files = list(self.temp_dir.glob(f"{self.session_id}_*.json"))
+        if temp_files:
+            with open(sorted(temp_files)[-1], 'r', encoding='utf-8') as f:
+                self._from_dict(json.load(f))
     
     def _from_dict(self, data: Dict):
         """Load session from dict."""
@@ -258,15 +282,13 @@ class ChatSession:
     
     def save(self) -> str:
         """
-        Save session to disk.
-        
+        Save session to disk using dual-write strategy:
+        - Temp snapshot:   data/sessions/temp/{uuid}_{timestamp}.json  (crash safety)
+        - Canonical file:  data/sessions/{YYYYMMDD}_{uuid8}.json       (atomic overwrite)
+
         Returns:
-            Path to saved file
+            Path to canonical file
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{self.session_id}_{timestamp}.json"
-        filepath = self.sessions_dir / filename
-        
         data = {
             'session_id': self.session_id,
             'title': self.title,
@@ -276,11 +298,21 @@ class ChatSession:
             'current_summary': self.current_summary,
             'messages': [m.to_dict() for m in self.messages]
         }
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
+
+        # 1. Write temp snapshot for crash safety
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        temp_file = self.temp_dir / f"{self.session_id}_{timestamp}.json"
+        with open(temp_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        
-        return str(filepath)
+
+        # 2. Atomic write to canonical file (write .tmp then rename)
+        canonical = self._canonical_path()
+        tmp_canonical = canonical.with_suffix('.tmp')
+        with open(tmp_canonical, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        tmp_canonical.rename(canonical)
+
+        return str(canonical)
     
     def to_dict(self) -> Dict:
         """Convert full session to dict including messages."""
@@ -784,44 +816,30 @@ class ChatManager:
     
     def list_sessions(self) -> List[Dict[str, Any]]:
         """
-        List all saved sessions.
-        
+        List all saved sessions from canonical files only.
+
         Returns:
             List of session summary dicts
         """
         sessions = []
-        
-        # Group by session_id (multiple saves per session)
-        session_files = {}
-        for filepath in self.sessions_dir.glob('*.json'):
-            # Parse filename: session_id_timestamp.json
-            parts = filepath.stem.split('_')
-            if len(parts) >= 2:
-                session_id = parts[0]
-                if session_id not in session_files:
-                    session_files[session_id] = []
-                session_files[session_id].append(filepath)
-        
-        # Get most recent save for each session
-        for session_id, files in session_files.items():
-            latest = sorted(files)[-1]
+
+        for filepath in self.sessions_dir.glob('[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_????????.json'):
             try:
-                with open(latest, 'r', encoding='utf-8') as f:
+                with open(filepath, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    # Handle both missing title and empty string
-                    title = data.get('title', '') or 'Untitled Session'
-                    sessions.append({
-                        'session_id': session_id,
-                        'title': title,
-                        'created_at': data.get('created_at'),
-                        'updated_at': data.get('updated_at'),
-                        'message_count': len(data.get('messages', [])),
-                        'settings': data.get('settings', {})
-                    })
+                title = data.get('title', '') or 'Untitled Session'
+                sessions.append({
+                    'session_id': data.get('session_id'),
+                    'title': title,
+                    'created_at': data.get('created_at'),
+                    'updated_at': data.get('updated_at'),
+                    'message_count': len(data.get('messages', [])),
+                    'settings': data.get('settings', {})
+                })
             except Exception as e:
-                self._log(f"Error reading session {session_id}: {e}")
-        
-        return sorted(sessions, key=lambda x: x['updated_at'], reverse=True)
+                self._log(f"Error reading session {filepath.name}: {e}")
+
+        return sorted(sessions, key=lambda x: x.get('updated_at', ''), reverse=True)
 
 
 # Example usage and testing

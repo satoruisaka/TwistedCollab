@@ -376,10 +376,10 @@ async def chat_message_stream(request: ChatMessageRequest):
         
         # Get or create session
         session = chat_manager.get_session(request.session_id, settings)
-        session.add_message('user', request.message)
-        
+
         # Perform retrieval and web search (same as non-streaming)
         context_items = []
+        web_search_meta = None
         if settings.use_rag:
             from retrieval_manager import SearchScope
             import re as _re
@@ -427,6 +427,11 @@ async def chat_message_stream(request: ChatMessageRequest):
                     query=request.message,
                     num_results=10
                 )
+                web_search_meta = {
+                    'query': request.message,
+                    'cache_file': web_response.cache_path,
+                    'result_count': len(web_response.results)
+                }
                 from chat_manager import ContextItem
                 for result in web_response.results:
                     context_items.append(ContextItem(
@@ -437,7 +442,7 @@ async def chat_message_stream(request: ChatMessageRequest):
                     ))
             except Exception as e:
                 logger.warning(f"Web search failed: {e}")
-        
+
         # Add uploaded document context if provided (independent of RAG setting)
         if request.uploaded_context:
             logger.info(f"Including {len(request.uploaded_context)} uploaded documents in context")
@@ -449,7 +454,22 @@ async def chat_message_stream(request: ChatMessageRequest):
                     snippet=doc.get('content', '')[:500],  # First 500 chars as snippet
                     full_content=doc.get('content', '')  # Store full content
                 ))
-        
+
+        # Save user message with activity metadata now that context is known
+        user_meta = {}
+        if web_search_meta:
+            user_meta['web_search'] = web_search_meta
+        if request.uploaded_context:
+            user_meta['uploaded_files'] = [
+                {
+                    'filename': d.get('filename'),
+                    'saved_path': d.get('saved_path'),
+                    'token_count': d.get('token_count')
+                }
+                for d in request.uploaded_context
+            ]
+        session.add_message('user', request.message, metadata=user_meta if user_meta else None)
+
         # Build prompt
         if context_items:
             session.add_context(context_items)
@@ -563,7 +583,17 @@ async def chat_message_stream(request: ChatMessageRequest):
                 session.add_message('assistant', full_response, metadata={
                     'distorted': settings.use_distortion,
                     'context_count': len(context_items),
-                    'ensemble': ensemble_outputs is not None
+                    'ensemble': ensemble_outputs is not None,
+                    'sources': [
+                        {
+                            'source': c.source,
+                            'title': c.title,
+                            'url': c.url,
+                            'doc_id': c.doc_id,
+                            'score': c.score
+                        }
+                        for c in context_items
+                    ]
                 })
                 saved_path = session.save()
 

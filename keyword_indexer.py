@@ -206,6 +206,7 @@ class KeywordIndexer:
         files = [
             p for p in (source_path.rglob("*.*") if source_path.is_dir() else [source_path])
             if p.suffix.lower() in self.TEXT_EXTENSIONS
+            and "temp" not in p.parts
         ]
 
         indexed_count = skipped_count = error_count = 0

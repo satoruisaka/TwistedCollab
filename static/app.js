@@ -376,7 +376,8 @@ async function sendMessage(queryText) {
 
     if (state.uploadedDocuments.length > 0) {
         requestData.uploaded_context = state.uploadedDocuments.map(d => ({
-            filename: d.filename, content: d.content
+            filename: d.filename, content: d.content,
+            saved_path: d.saved_path || null, token_count: d.token_count || null
         }));
         console.log(`📄 Including ${state.uploadedDocuments.length} uploaded document(s) in request:`, 
             state.uploadedDocuments.map(d => d.filename));
@@ -724,7 +725,8 @@ async function handleFileUpload(event) {
         statusDiv.innerHTML = `<span style="color:var(--success)">✅ ${data.filename}</span>`;
         state.uploadedDocuments.push({
             filename: data.filename, content: data.markdown_content,
-            token_count: data.token_count, uploaded_at: new Date().toISOString()
+            token_count: data.token_count, saved_path: data.saved_path || null,
+            uploaded_at: new Date().toISOString()
         });
         console.log(`📁 Uploaded document added to state: ${data.filename} (${data.token_count} tokens)`);
         console.log(`📚 Total uploaded documents in state: ${state.uploadedDocuments.length}`);

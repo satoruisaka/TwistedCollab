@@ -87,15 +87,48 @@ def session_to_markdown(session_file: Path) -> str:
         
         # Add sources if present
         metadata = msg.get('metadata', {})
+
+        # Web search reference (user messages)
+        web_search = metadata.get('web_search')
+        if web_search:
+            lines.append("**Web Search:**")
+            lines.append("")
+            lines.append(f"- Query: `{web_search.get('query', '')}`")
+            cache_file = web_search.get('cache_file')
+            if cache_file:
+                lines.append(f"- Cache file: `{cache_file}`")
+            lines.append(f"- Results: {web_search.get('result_count', 0)}")
+            lines.append("")
+
+        # Uploaded files reference (user messages)
+        uploaded_files = metadata.get('uploaded_files', [])
+        if uploaded_files:
+            lines.append("**Uploaded Files:**")
+            lines.append("")
+            for uf in uploaded_files:
+                fname = uf.get('filename', 'unknown')
+                sp = uf.get('saved_path')
+                tc = uf.get('token_count')
+                detail = f" → `{sp}`" if sp else ""
+                token_str = f" ({tc} tokens)" if tc else ""
+                lines.append(f"- `{fname}`{detail}{token_str}")
+            lines.append("")
+
+        # Sources referenced (assistant messages)
         sources = metadata.get('sources', [])
         if sources:
             lines.append("**Sources Referenced:**")
             lines.append("")
             for src in sources:
-                filename = src.get('filename', 'unknown')
-                score = src.get('score', 0)
-                doc_id = src.get('doc_id', '')
-                lines.append(f"- `{filename}` (score: {score:.3f}, doc: {doc_id})")
+                source_type = src.get('source', 'unknown')
+                title = src.get('title', 'unknown')
+                score = src.get('score')
+                url = src.get('url')
+                doc_id = src.get('doc_id')
+                score_str = f" (score: {score:.3f})" if score else ""
+                ref = url or doc_id or ''
+                ref_str = f" — {ref}" if ref else ""
+                lines.append(f"- [{source_type}] `{title}`{score_str}{ref_str}")
             lines.append("")
         
         lines.append("---")
@@ -133,10 +166,8 @@ def convert_sessions(resume: bool = False, verbose: bool = False):
     stats = {'success': 0, 'skipped': 0, 'failed': 0}
     
     for i, session_file in enumerate(session_files, 1):
-        # Output filename: use session_id from filename (first part before underscore)
-        parts = session_file.stem.split('_')
-        session_id = parts[0]
-        output_file = SESSIONS_MD_DIR / f"{session_id}.md"
+        # Output filename: use full file stem (matches canonical YYYYMMDD_uuid8 naming)
+        output_file = SESSIONS_MD_DIR / f"{session_file.stem}.md"
         
         # Check if already converted
         if resume and output_file.exists():
