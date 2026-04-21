@@ -153,7 +153,7 @@ class ChatMessageRequest(BaseModel):
     search_mode: str = "semantic"
 
     # Uploaded document context (optional)
-    uploaded_context: Optional[List[Dict[str, str]]] = None
+    uploaded_context: Optional[List[Dict[str, Any]]] = None
     
     @validator('message')
     def sanitize_message(cls, v):
@@ -1389,7 +1389,8 @@ async def upload_file(request: Request):
             md_content, saved_path = process_uploaded_file(
                 file_path=tmp_path,
                 save_to_disk=True,  # Save to user_uploads directory
-                include_metadata=True
+                include_metadata=True,
+                original_filename=uploaded_file.filename
             )
             
             # Get token count

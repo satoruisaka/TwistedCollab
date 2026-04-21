@@ -39,6 +39,7 @@ Usage (API):
     )
 """
 import sys
+import re
 import csv
 import argparse
 from pathlib import Path
@@ -57,11 +58,45 @@ UPLOAD_MD_DIR = Path(__file__).parent / "data" / "markdown" / "user_uploads"
 UPLOAD_MD_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _make_upload_filename(original_filename: Optional[str], output_dir: Path) -> str:
+    """Generate a sortable, human-readable filename for an uploaded document.
+
+    Format: YYYYMMDD_upload_<title_slug>.md
+    Where <title_slug> is derived from the first words of the original filename.
+    Deduplicates against existing files in output_dir.
+    """
+    date_str = datetime.now().strftime("%Y%m%d")
+
+    stem = Path(original_filename).stem if original_filename else "document"
+
+    # Normalize to underscore-separated lowercase words, strip special chars
+    slug = re.sub(r'[\s\-\.]+', '_', stem.lower())
+    slug = re.sub(r'[^a-z0-9_]', '', slug)
+    slug = re.sub(r'_+', '_', slug).strip('_')
+
+    # Keep first 5 words only for brevity
+    parts = [p for p in slug.split('_') if p]
+    slug = '_'.join(parts[:5]) or "document"
+
+    base = f"{date_str}_upload_{slug}"
+    output_filename = f"{base}.md"
+    output_path = output_dir / output_filename
+
+    counter = 1
+    while output_path.exists():
+        output_filename = f"{base}_{counter}.md"
+        output_path = output_dir / output_filename
+        counter += 1
+
+    return output_filename
+
+
 def process_uploaded_file(
     file_path: str | Path,
     save_to_disk: bool = True,
     output_dir: Optional[Path] = None,
-    include_metadata: bool = True
+    include_metadata: bool = True,
+    original_filename: Optional[str] = None
 ) -> Tuple[str, Optional[Path]]:
     """
     Process an uploaded file and convert to markdown.
@@ -71,6 +106,8 @@ def process_uploaded_file(
         save_to_disk: Whether to save converted markdown to disk
         output_dir: Output directory (default: user_uploads)
         include_metadata: Include token count and file metadata
+        original_filename: Original filename from the uploader, used to derive
+                           the human-readable output filename
     
     Returns:
         Tuple of (markdown_content, saved_file_path)
@@ -105,15 +142,10 @@ def process_uploaded_file(
     # Save to disk if requested
     saved_path = None
     if save_to_disk:
-        output_filename = file_path.stem + ".md"
+        # Build human-readable, sortable filename: YYYYMMDD_upload_<title>.md
+        source_name = original_filename or file_path.name
+        output_filename = _make_upload_filename(source_name, output_dir)
         output_path = output_dir / output_filename
-        
-        # Handle duplicate filenames
-        counter = 1
-        while output_path.exists():
-            output_filename = f"{file_path.stem}_{counter}.md"
-            output_path = output_dir / output_filename
-            counter += 1
         
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(md_content)

@@ -853,6 +853,7 @@ async function loadSession(sessionId) {
 function createNewSession() {
     state.currentSessionId = null;
     state.messages = [];
+    state.uploadedDocuments = [];
     currentExchange = null;
 
     const container = document.getElementById('chat-messages');
