@@ -21,6 +21,7 @@ import json
 import hashlib
 import time
 import random
+import uuid
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 from dataclasses import dataclass, asdict
@@ -168,9 +169,9 @@ class WebSearchClient:
         Returns:
             Path to cache file
         """
-        query_hash = self._query_hash(query)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{query_hash}_{timestamp}.json"
+        date_str = datetime.now().strftime("%Y%m%d")
+        short_uuid = str(uuid.uuid4())[:8]
+        filename = f"{date_str}_{short_uuid}.json"
         return self.cache_dir / filename
     
     def _save_to_cache(
