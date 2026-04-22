@@ -196,13 +196,20 @@
                                 <div class="message assistant">
                                     <div class="message-avatar">🤖</div>
                                     <div class="message-content">
-                                        <p>Hello! I'm TwistedCollab. I can help you:</p>
+                                        <p>Suggested prompt structures:</p>
                                         <ul style="margin-top:0.5rem;padding-left:1.5rem;">
-                                            <li>Search across reference papers, authored papers, sessions, and web cache</li>
-                                            <li>Perform live web searches</li>
-                                            <li>Answer questions using local Ollama LLMs</li>
-                                            <li>Apply rhetorical distortion via TwistedPair</li>
-                                            <li>Write and manage Markdown notes</li>
+                                            <li><b>Instruction following</b> tasks (precision)
+                                            <br><i>Task → Rules → Constraints → Output Format → [Optional: 1-shot example]</i></li>
+                                            <li><b>Deep reasoning</b> tasks (exploration)
+                                            <br><i>Context → Goal → Requested depth/perspective → Output format → Invitation to iterate</i></li>
+                                            <li><b>Architecting</b> tasks (system Design, trade-off analysis)
+                                            <br><i>Problem domain → Constraints (scale, latency, budget, compliance) → Required qualities → Output format → Request trade-off analysis</i></li>
+                                            <li><b>Code generation</b> tasks
+                                            <br><i>Task → Language/Framework → I/O spec → Constraints/Standards → Edge cases → Output format</i></li>
+                                            <li><b>Debugging</b> tasks (systematic diagnostics)
+                                            <br><i>Code + Error/Output → Environment/Version → What you tried → Specific question → Debug format</i></li>
+                                            <li><b>RAG search Q&A</b> tasks
+                                            <br><i>&lt;context&gt; &lt;/context&gt; → &lt;query&gt; &lt;/query&gt; → &lt;instructions&gt; &lt;/instructions&gt;</i></li>
                                         </ul>
                                         <p style="margin-top:0.75rem;">Select data sources on the left, then type your query.</p>
                                     </div>
