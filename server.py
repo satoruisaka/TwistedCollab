@@ -80,7 +80,8 @@ def _notify_twistedcore(
 def _latest_collab_session_file(session_id: str) -> str:
     """Return absolute path to the most recently written file for a session."""
     sessions_dir = Path("data/sessions")
-    files = sorted(sessions_dir.glob(f"{session_id}_*.json"))
+    uuid8 = session_id[:8]
+    files = sorted(sessions_dir.glob(f"[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_{uuid8}.json"))
     return str(files[-1].resolve()) if files else ""
 
 
